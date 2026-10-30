@@ -4,6 +4,17 @@
 `box` 是 CG 智能对象替换后的目标矩形（画布像素坐标），渲染引擎按
 cover 适配该矩形并居中。
 
+## 获取母版
+
+母版体积较大（合计约 212 MB），不纳入 git 历史，放在 Release：
+<https://github.com/GalgameCriticism/Autoweekly-skills/releases/tag/templates-v1>
+
+| 模板 | Release 文件名 | SHA256 | 环境变量 |
+|---|---|---|---|
+| T1 16:9 | `weekly-cover-t1-16x9.psd` | `0CA7823EDA963B4738F2D1E2B796139CDB7FD4B83F4CFB5566A39AA7997A6472` | `WEEKLY_COVER_T1_SOURCE` |
+| T2 横幅 | `weekly-cover-t2-banner.psd` | `01210F74B049244A8BE28A49D7D3C3BCC50EFD56319AE984772C75C115456551` | `WEEKLY_COVER_T2_SOURCE` |
+| T3 4:3 | `weekly-cover-t3-4x3.psd` | `01D093192265E9FD9A22C27943064D52319F7248CC2202827EB9BD35B1F7F996` | `WEEKLY_COVER_T3_SOURCE` |
+
 | 模板 | 画布 | CG 智能对象层 | 目标矩形 box | 隐藏层 | 新闻期数 | 日期层 |
 |---|---|---|---|---|---|---|
 | T1 16:9 | 2400×1500 | 2026, 2025 | `[-264, 0, 2400, 1500]` | — | 939 | 185（仅 T2 使用） |

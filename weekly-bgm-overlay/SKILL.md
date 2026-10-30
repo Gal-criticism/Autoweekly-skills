@@ -10,6 +10,7 @@ description: 根据聊天中的 BGM 信息或 BGM.txt，通过 Photoshop 原生�
 
 ## 本机约定
 
+- 母版获取与图层契约：`references/template.md`（Release `templates-v1`）。
 - 母版：`E:/gal批评/gal视频后期/周报角标.psd`
 - Photoshop：`D:/114514/Adobe/Adobe Photoshop 2023/Photoshop.exe`
 - Python：`E:/Anaconda3/python.exe`（需要 Pillow、numpy）

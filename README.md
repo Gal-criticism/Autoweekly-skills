@@ -55,7 +55,29 @@ weekly-cover/
 - Windows，且已安装 Adobe Photoshop 2023 或更高版本。
 - Python 3，并安装 `Pillow`（`weekly-bgm-overlay` 还需要 `numpy`）。
 - COM 桥接必须用 Windows PowerShell 5.1（不要用 PowerShell 7 跑 COM）。
-- 自备 Photoshop PSD 模板（仓库不附带母版）。
+- 需要 4 个 PSD 母版，见下方「模板下载」。
+
+## 模板下载
+
+母版合计约 257 MB，不纳入 git 历史，统一作为 Release 附件分发：
+
+**[下载 templates-v1](https://github.com/GalgameCriticism/Autoweekly-skills/releases/tag/templates-v1)**
+
+| 文件 | 用途 | 画布 | 大小 |
+| --- | --- | --- | --- |
+| `weekly-cover-t1-16x9.psd` | `weekly-cover` T1 主封面 | 2400×1500 | 45.2 MB |
+| `weekly-cover-t2-banner.psd` | `weekly-cover` T2 横幅 | 3525×1500 | 76.8 MB |
+| `weekly-cover-t3-4x3.psd` | `weekly-cover` T3 4:3 | 2400×1800 | 90.0 MB |
+| `weekly-bgm-overlay-master.psd` | `weekly-bgm-overlay` 角标母版 | 2160×1080 | 44.7 MB |
+
+下载后可校验：
+
+```powershell
+Get-FileHash .\weekly-cover-t1-16x9.psd -Algorithm SHA256
+```
+
+期望哈希见 [Release 说明](https://github.com/GalgameCriticism/Autoweekly-skills/releases/tag/templates-v1)
+或各 skill 的 `references/` 文档。
 
 ## 路径配置
 
