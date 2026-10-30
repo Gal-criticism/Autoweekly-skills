@@ -1,15 +1,15 @@
 # Autoweekly Skills
 
-Two independent Codex skills for producing Galgame weekly-report graphics with
-Adobe Photoshop, driven through the native COM / `DoJavaScriptFile` interface
-(no Computer Use, no GUI clicking).
+两个独立的 Codex skill，用于借助 Adobe Photoshop 生成 Galgame 周报配图。
+全部通过 Photoshop 原生 COM / `DoJavaScriptFile` 接口驱动，**不依赖
+Computer Use，也不需要模拟点击界面**。
 
-| Skill | Purpose |
+| Skill | 用途 |
 | --- | --- |
-| `weekly-bgm-overlay` | Turn BGM info into transparent PNG helper overlays for the 新作 / 汉化 / 周边 / 简讯 sections. |
-| `weekly-cover` | Place CG artwork into three cover templates (16:9, wide banner, 4:3), auto-tint from the CG edge colours, and avoid face occlusion. |
+| `weekly-bgm-overlay` | 根据 BGM 信息，批量生成新作 / 汉化 / 周边 / 简讯四栏的透明 PNG 辅助角标。 |
+| `weekly-cover` | 把 CG 立绘放进三个封面模板（16:9、横幅、4:3），按 CG 边缘主色自动配色，并避开人脸遮挡。 |
 
-## Layout
+## 目录结构
 
 ```
 weekly-bgm-overlay/
@@ -26,36 +26,35 @@ weekly-cover/
   scripts/runtime/...
 ```
 
-Each folder is a self-contained skill: point your installer at the folder that
-contains `SKILL.md` (e.g. `.../Autoweekly-skills/weekly-cover`).
+每个文件夹都是一个独立 skill：把安装器指向含 `SKILL.md` 的目录即可，例如
+`.../Autoweekly-skills/weekly-cover`。
 
-## Requirements
+## 运行环境
 
-- Windows with Adobe Photoshop 2023+ installed.
-- Python 3 with `Pillow` (`weekly-bgm-overlay` also needs `numpy`).
-- Windows PowerShell 5.1 for the COM bridge (do not use PowerShell 7 for COM).
-- Your own Photoshop PSD templates (not bundled here).
+- Windows，且已安装 Adobe Photoshop 2023 或更高版本。
+- Python 3，并安装 `Pillow`（`weekly-bgm-overlay` 还需要 `numpy`）。
+- COM 桥接必须用 Windows PowerShell 5.1（不要用 PowerShell 7 跑 COM）。
+- 自备 Photoshop PSD 模板（仓库不附带母版）。
 
-## Configuring paths
+## 路径配置
 
-Both skills default to the author's local paths. Override them with environment
-variables to run on your machine; each variable falls back to the author default
-when unset.
+两个 skill 默认指向作者本机路径。请用环境变量覆盖成你自己的路径；未设置时
+回退到作者默认值。
 
 `weekly-cover`
 
-- `WEEKLY_COVER_T1_SOURCE` - 16:9 template PSD
-- `WEEKLY_COVER_T2_SOURCE` - wide banner template PSD
-- `WEEKLY_COVER_T3_SOURCE` - 4:3 template PSD
-- `WEEKLY_COVER_PHOTOSHOP` - path to `Photoshop.exe`
-- `WEEKLY_COVER_OUTPUT` - default output directory
+- `WEEKLY_COVER_T1_SOURCE` —— 16:9 模板 PSD
+- `WEEKLY_COVER_T2_SOURCE` —— 横幅模板 PSD
+- `WEEKLY_COVER_T3_SOURCE` —— 4:3 模板 PSD
+- `WEEKLY_COVER_PHOTOSHOP` —— `Photoshop.exe` 路径
+- `WEEKLY_COVER_OUTPUT` —— 默认输出目录
 
 `weekly-bgm-overlay`
 
-- `WEEKLY_OVERLAY_TEMPLATE` - overlay master PSD
-- `WEEKLY_OVERLAY_PHOTOSHOP` - path to `Photoshop.exe`
+- `WEEKLY_OVERLAY_TEMPLATE` —— 角标母版 PSD
+- `WEEKLY_OVERLAY_PHOTOSHOP` —— `Photoshop.exe` 路径
 
-## Install
+## 安装
 
 ```powershell
 git clone https://github.com/GalgameCriticism/Autoweekly-skills.git
@@ -63,8 +62,7 @@ Copy-Item -Recurse .\Autoweekly-skills\weekly-cover "$env:USERPROFILE\.codex\ski
 Copy-Item -Recurse .\Autoweekly-skills\weekly-bgm-overlay "$env:USERPROFILE\.codex\skills\weekly-bgm-overlay"
 ```
 
-## Notes
+## 说明
 
-- PSD masters, fonts, and client artwork are intentionally not committed.
-- Rendering is deterministic and idempotent per run directory; every run writes
-  a `job.json` plus verification records.
+- PSD 母版、字体、客户素材均不纳入版本库。
+- 渲染按运行目录确定且可重复；每次运行都会写出 `job.json` 及核验记录。
