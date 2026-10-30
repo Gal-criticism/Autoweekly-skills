@@ -11,15 +11,24 @@ Computer Use，也不需要模拟点击界面**。
 
 ## 效果预览
 
+### weekly-cover：周报封面
+
 `weekly-cover` 的实际产出——每行一种模板，每列一张 CG（自上而下：16:9 主封面、
 横幅、4:3；横幅为 refine 后的配色版本）：
 
 [![周报封面效果预览](assets/preview.jpg)](assets/preview.jpg)
 
+### weekly-bgm-overlay：BGM 辅助角标
+
+四类栏目的透明 PNG 角标（棋盘格代表透明区域，实际使用时叠加在视频画面上）。
+左上 → 右下依次为新作情报、汉化情报、周边情报、简讯：
+
+[![BGM 角标效果预览](assets/preview-overlay.jpg)](assets/preview-overlay.jpg)
+
 点击图片可查看原尺寸。
 
-> 预览中的 CG 立绘仅用于演示效果，版权归原作者 / 发行方所有；仓库不分发
-> PSD 母版、字体或客户素材。
+> 预览中的 CG 立绘、曲目与作者信息仅用于演示效果，版权归原作者 / 发行方
+> 所有；仓库不分发 PSD 母版、字体或客户素材。
 
 ## 目录结构
 
