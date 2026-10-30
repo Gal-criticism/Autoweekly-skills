@@ -1,0 +1,72 @@
+function renderCovers(job) {
+    function json(v) {
+        if(v===null||v===undefined)return "null";
+        if(typeof v==="string")return '"'+v.replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/[\u0000-\u001f]/g,function(c){return "\\u"+("0000"+c.charCodeAt(0).toString(16)).slice(-4);})+'"';
+        if(typeof v==="number"||typeof v==="boolean")return String(v);
+        var a=[],k;
+        if(v instanceof Array){for(k=0;k<v.length;k++)a.push(json(v[k]));return "["+a.join(",")+"]";}
+        for(k in v)if(v.hasOwnProperty(k))a.push(json(k)+":"+json(v[k]));return "{"+a.join(",")+"}";
+    }
+    function write(report){var f=File(job.output_dir+"/covers_result.json");f.encoding="UTF8";if(!f.open("w"))throw Error("Cannot write manifest");f.write(json(report));f.close();}
+    function find(container,id){for(var i=0;i<container.layers.length;i++){var l=container.layers[i];if(l.id===id)return l;if(l.typename==="LayerSet"){var found=find(l,id);if(found)return found;}}return null;}
+    function one(doc,id){var l=find(doc,id);if(!l)throw Error("Missing layer "+id);return l;}
+    function descriptor(layer){var ref=new ActionReference();ref.putIdentifier(stringIDToTypeID("layer"),layer.id);return executeActionGet(ref);}
+    function box(layer){
+        var d=descriptor(layer);
+        if(d.hasKey(stringIDToTypeID("smartObjectMore"))){
+            var t=d.getObjectValue(stringIDToTypeID("smartObjectMore")).getList(stringIDToTypeID("transform"));
+            var xs=[],ys=[];for(var i=0;i<8;i+=2){xs.push(t.getDouble(i));ys.push(t.getDouble(i+1));}
+            return [Math.min.apply(null,xs),Math.min.apply(null,ys),Math.max.apply(null,xs),Math.max.apply(null,ys)];
+        }
+        var b=layer.bounds;return [b[0].as("px"),b[1].as("px"),b[2].as("px"),b[3].as("px")];
+    }
+    function maskLinked(layer,value){var ref=new ActionReference();ref.putIdentifier(stringIDToTypeID("layer"),layer.id);var d=new ActionDescriptor(),to=new ActionDescriptor();d.putReference(charIDToTypeID("null"),ref);to.putBoolean(stringIDToTypeID("userMaskLinked"),value);d.putObject(charIDToTypeID("T   "),charIDToTypeID("Lyr "),to);executeAction(charIDToTypeID("setd"),d,DialogModes.NO);}
+    function replace(doc,spec){
+        var l=one(doc,spec.id);if(l.kind!==LayerKind.SMARTOBJECT)throw Error("Expected smart object "+spec.id);
+        var old=box(l),info=descriptor(l),linked=null;
+        if(info.hasKey(stringIDToTypeID("hasUserMask"))&&info.getBoolean(stringIDToTypeID("hasUserMask"))){linked=info.getBoolean(stringIDToTypeID("userMaskLinked"));if(linked)maskLinked(l,false);}
+        doc.activeLayer=l;
+        var d=new ActionDescriptor();d.putPath(charIDToTypeID("null"),File(spec.image));executeAction(stringIDToTypeID("placedLayerReplaceContents"),d,DialogModes.NO);
+        var b=box(l),target=spec.box;
+        var scale=Math.max((target[2]-target[0])/(b[2]-b[0]),(target[3]-target[1])/(b[3]-b[1]))*100;
+        l.resize(scale,scale,AnchorPosition.MIDDLECENTER);b=box(l);
+        l.translate(UnitValue((target[0]+target[2]-b[0]-b[2])/2,"px"),UnitValue((target[1]+target[3]-b[1]-b[3])/2,"px"));
+        if(linked)maskLinked(l,true);
+        l.name="CG "+spec.cg+" - "+spec.id;
+        return {id:spec.id,image:spec.image,original_box:old,target_box:target,final_box:box(l),mask_linked:linked};
+    }
+    function fill(doc,id,rgb){
+        doc.activeLayer=one(doc,id);var ref=new ActionReference();ref.putEnumerated(stringIDToTypeID("contentLayer"),charIDToTypeID("Ordn"),charIDToTypeID("Trgt"));
+        var d=new ActionDescriptor(),to=new ActionDescriptor(),c=new ActionDescriptor();d.putReference(charIDToTypeID("null"),ref);
+        c.putDouble(charIDToTypeID("Rd  "),rgb[0]);c.putDouble(charIDToTypeID("Grn "),rgb[1]);c.putDouble(charIDToTypeID("Bl  "),rgb[2]);
+        to.putObject(charIDToTypeID("Clr "),charIDToTypeID("RGBC"),c);d.putObject(charIDToTypeID("T   "),stringIDToTypeID("solidColorLayer"),to);executeAction(charIDToTypeID("setd"),d,DialogModes.NO);
+    }
+    function fonts(container,report){for(var i=0;i<container.layers.length;i++){var l=container.layers[i];if(l.typename==="LayerSet")fonts(l,report);else if(l.kind===LayerKind.TEXT){var original=l.textItem.contents;l.textItem.font="CormorantGaramond-Bold";l.textItem.contents=original;report.push({id:l.id,text:original,font:l.textItem.font});}}}
+    var report={run_id:job.run_id,status:"failed",photoshop:app.version,outputs:[]};
+    var previous=app.documents.length?app.activeDocument:null,dialogs=app.displayDialogs,units=app.preferences.rulerUnits,doc=null;
+    try {
+        app.fonts.getByName("CormorantGaramond-Bold");
+        app.displayDialogs=DialogModes.NO;app.preferences.rulerUnits=Units.PIXELS;
+        for(var i=0;i<job.covers.length;i++){
+            var spec=job.covers[i];doc=app.open(File(spec.template));
+            var item={index:spec.index,filename:spec.filename,width:doc.width.as("px"),height:doc.height.as("px"),replacements:[],fonts:[],issue:one(doc,939).textItem.contents};
+            for(var h=0;h<spec.hide.length;h++)one(doc,spec.hide[h]).visible=false;
+            for(var j=0;j<spec.replacements.length;j++)item.replacements.push(replace(doc,spec.replacements[j]));
+            fill(doc,919,spec.tint);fonts(doc,item.fonts);
+            if(spec.date){var date=one(doc,185),oldRight=box(date)[2];date.textItem.contents=spec.date;date.translate(UnitValue(oldRight-box(date)[2],"px"),UnitValue(0,"px"));item.date=spec.date;}
+            var psd=new PhotoshopSaveOptions();psd.layers=true;psd.embedColorProfile=true;
+            doc.saveAs(File(job.output_dir+"/"+spec.filename+".psd"),psd,true,Extension.LOWERCASE);
+            var png=new PNGSaveOptions();png.compression=6;doc.saveAs(File(job.output_dir+"/"+spec.filename+".png"),png,true,Extension.LOWERCASE);
+            var jpg=new JPEGSaveOptions();jpg.quality=11;doc.saveAs(File(job.output_dir+"/"+spec.filename+".jpg"),jpg,true,Extension.LOWERCASE);
+            doc.close(SaveOptions.DONOTSAVECHANGES);doc=null;
+            report.outputs.push(item);write(report);
+        }
+        report.status="rendered";
+    }catch(e){report.error=String(e);report.line=e.line;}
+    finally{
+        if(doc)try{doc.close(SaveOptions.DONOTSAVECHANGES);}catch(_){}
+        app.displayDialogs=dialogs;app.preferences.rulerUnits=units;
+        if(previous)try{app.activeDocument=previous;}catch(_){}
+        write(report);
+    }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "周报 BGM 角标"
+  short_description: "使用 Photoshop 母版批量生成四类周报透明角标，并计算日期、核验图片和生成预览"
+  default_prompt: "使用 $weekly-bgm-overlay，根据我提供的 BGM 信息生成本期周报角标。"
