@@ -1,10 +1,10 @@
 """Cover templates, tint derivation, and job schema."""
 
-import os
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from PIL import Image
+from template_assets import template_path
 
 
 _SHANGHAI = timezone(timedelta(hours=8), name="Asia/Shanghai")
@@ -13,8 +13,8 @@ _SHANGHAI = timezone(timedelta(hours=8), name="Asia/Shanghai")
 DEFAULT_TEMPLATES = {
     1: {
         "key": "t1_16x9",
-        "source": os.environ.get(
-            "WEEKLY_COVER_T1_SOURCE", "E:/114514/周报视频_封面模板_16-9.psd"
+        "source": template_path(
+            "WEEKLY_COVER_T1_SOURCE", "E:/114514/周报视频_封面模板_16-9.psd", "weekly-cover-t1-16x9.psd"
         ),
         "size": [2400, 1500],
         "layers": [2026, 2025],
@@ -26,9 +26,10 @@ DEFAULT_TEMPLATES = {
     },
     2: {
         "key": "t2_wide",
-        "source": os.environ.get(
+        "source": template_path(
             "WEEKLY_COVER_T2_SOURCE",
             "E:/114514/周报视频_封面模板_V100_文章_1.2-2.psd",
+            "weekly-cover-t2-banner.psd",
         ),
         "size": [3525, 1500],
         "layers": [2394, 2393],
@@ -38,8 +39,8 @@ DEFAULT_TEMPLATES = {
     },
     3: {
         "key": "t3_43",
-        "source": os.environ.get(
-            "WEEKLY_COVER_T3_SOURCE", "E:/114514/周报模板_视频封面_1.3 (1).psd"
+        "source": template_path(
+            "WEEKLY_COVER_T3_SOURCE", "E:/114514/周报模板_视频封面_1.3 (1).psd", "weekly-cover-t3-4x3.psd"
         ),
         "size": [2400, 1800],
         "layers": [135, 136],

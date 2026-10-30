@@ -10,10 +10,11 @@ import sys
 import uuid
 
 from .model import display_period, parse_bgm, validate_task
+from template_assets import template_path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TEMPLATE = Path(
-    os.environ.get("WEEKLY_OVERLAY_TEMPLATE", "E:/gal批评/gal视频后期/周报角标.psd")
+    template_path("WEEKLY_OVERLAY_TEMPLATE", "E:/gal批评/gal视频后期/周报角标.psd", "weekly-bgm-overlay-master.psd")
 )
 DEFAULT_PHOTOSHOP = os.environ.get(
     "WEEKLY_OVERLAY_PHOTOSHOP",

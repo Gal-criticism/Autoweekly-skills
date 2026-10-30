@@ -8,20 +8,36 @@ description: 根据聊天中的 BGM 信息或 BGM.txt，通过 Photoshop 原生�
 把用户给出的栏目、音乐名、作者和日期整理成任务，再用本机 Photoshop
 执行附带 JSX。交付透明 PNG、全画布及文字放大预览、核验记录。
 
-## 本机约定
+## 首次使用：下载模板并连接 Photoshop
 
-- 母版获取与图层契约：`references/template.md`（Release `templates-v1`）。
-- 母版：`E:/gal批评/gal视频后期/周报角标.psd`
-- Photoshop：`D:/114514/Adobe/Adobe Photoshop 2023/Photoshop.exe`
-- Python：`E:/Anaconda3/python.exe`（需要 Pillow、numpy）
-- 直接接口：Windows PowerShell 5.1 的 COM `DoJavaScriptFile`，连接现有
-  Photoshop；未运行时自动启动。不要换成当前 PowerShell 7 的 COM 运行时。
-- 默认输出：`E:/project/周报图片设计/runs`
-- 以上路径均可用环境变量覆盖（未设置时回退到上文本机路径）：
-  `WEEKLY_OVERLAY_TEMPLATE`、`WEEKLY_OVERLAY_PHOTOSHOP`。
-- 四类栏目顺序：新作情报、汉化情报、周边情报、简讯。
-- 原字体：MiSans-Semibold、MiSans-Regular、NotoSerifCJKsc-SemiBold。
-  不自动替换字体。不要把字体文件或 PSD 打包到 skill。
+用户要求生成封面或角标时，可以从本仓库的 GitHub Release 下载对应 PSD 母版到
+本机，随后通过 Photoshop 原生接口使用。模板下载属于该生成流程的一部分，
+无需另让用户手动找文件；执行环境的联网和目录权限仍按实际规则申请。
+
+1. 查找可用的 Python 3.11+（封面需要 Pillow，角标还需要 numpy）和 Photoshop.exe。
+   优先使用用户配置、已运行 Photoshop 的可执行路径或本机安装路径，不能假定
+   示例中的盘符存在。原生接口使用 Windows PowerShell 5.1 STA。
+2. 检查所需模板路径。未配置本地模板或路径不存在时，运行：
+
+```powershell
+python '<skill>/scripts/download_templates.py'
+```
+
+   下载固定的 `templates-v1` Release；脚本校验文件大小、SHA256 和 PSD 画布尺寸。
+   封面下载 3 个文件（约 212 MiB），角标下载 1 个（约 45 MiB）。默认放到
+   `%LOCALAPPDATA%/Autoweekly/templates/templates-v1`，缺少 LOCALAPPDATA 时放到
+   `~/.cache/Autoweekly/templates/templates-v1`。已校验文件复用，失败临时文件清理，
+   校验失败的现存文件保留并报错；此时换目录下载，不能覆盖用户母版。
+3. 模板选择优先级：单模板环境变量 > 存在的旧版本机母版 > 默认缓存。
+   下载到其他目录时，用 `--directory '<目录>'`，并在后续命令同一环境设置
+   `AUTOWEEKLY_TEMPLATE_DIR`；若单模板变量指向不存在的文件，修正该变量或将下载
+   结果路径显式传入/设置为对应变量，避免继续使用无效路径。
+4. 将 Photoshop.exe 路径通过 `render --photoshop '<绝对路径>'` 传入；封面的 refine
+   也支持同一参数。确认模板后执行 prepare，再 render。prepare 会复制母版到独立
+   批次，Photoshop 打开副本执行 JSX；下载不等于已经导入、渲染或验收成功。
+
+详细母版下载与图层契约见 [references/template.md](references/template.md)。
+模板不含字体安装包；缺字体时说明缺失的 PostScript 名称，由用户安装后继续。
 
 ## 整理输入
 
@@ -55,7 +71,7 @@ description: 根据聊天中的 BGM 信息或 BGM.txt，通过 Photoshop 原生�
 1. 把规范化输入保存在当前可写工作区，然后准备独立批次：
 
 ```powershell
-& 'E:/Anaconda3/python.exe' '<skill>/scripts/overlay.py' prepare --input '<input.txt>' --output 'E:/project/周报图片设计/runs'
+python '<skill>/scripts/overlay.py' prepare --input '<input.txt>' --output '<工作区>/runs'
 ```
 
    手动日期加 `--start 2026-10-24 --end 2026-10-30`。
@@ -65,7 +81,7 @@ description: 根据聊天中的 BGM 信息或 BGM.txt，通过 Photoshop 原生�
 2. 直接调用 Photoshop 并自动核验，无需菜单或 Computer Use：
 
 ```powershell
-& 'E:/Anaconda3/python.exe' '<skill>/scripts/overlay.py' render '<run_dir>'
+python '<skill>/scripts/overlay.py' render '<run_dir>' --photoshop '<Photoshop.exe绝对路径>'
 ```
 
    此命令使用独立的 Windows PowerShell 5.1 STA 辅助进程连接 Photoshop，
@@ -77,7 +93,7 @@ description: 根据聊天中的 BGM 信息或 BGM.txt，通过 Photoshop 原生�
 3. 查询完成状态：
 
 ```powershell
-& 'E:/Anaconda3/python.exe' '<skill>/scripts/overlay.py' status '<run_dir>'
+python '<skill>/scripts/overlay.py' status '<run_dir>'
 ```
 
    单批最多等待五分钟；每次短等并观察，保持用户可见进展。
@@ -95,7 +111,7 @@ description: 根据聊天中的 BGM 信息或 BGM.txt，通过 Photoshop 原生�
 4. `render` 已自动核验。仅菜单备用导出或需要重新检查时单独核验：
 
 ```powershell
-& 'E:/Anaconda3/python.exe' '<skill>/scripts/overlay.py' verify '<run_dir>'
+python '<skill>/scripts/overlay.py' verify '<run_dir>'
 ```
 
    `rendered` 只表示 Photoshop 导出完成，`verified` 才表示程序核验通过。

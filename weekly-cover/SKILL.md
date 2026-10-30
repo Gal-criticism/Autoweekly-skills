@@ -9,21 +9,36 @@ description: 用 CG 立绘和三个周报封面模板，通过 Photoshop 原生�
 导出 PNG / JPG / 带图层的 PSD。自动从 CG 边缘主色推导背景色，并按模板
 几何摆放人物，避免人脸被标题文字或画布裁切遮挡。
 
-## 本机约定
+## 首次使用：下载模板并连接 Photoshop
 
-- 母版获取与图层契约：`references/templates.md`（Release `templates-v1`）。
-- 模板母版（只读，不改原文件）：
-  - T1 16:9：`E:/114514/周报视频_封面模板_16-9.psd`（2400×1500）
-  - T2 横幅：`E:/114514/周报视频_封面模板_V100_文章_1.2-2.psd`（3525×1500）
-  - T3 4:3：`E:/114514/周报模板_视频封面_1.3 (1).psd`（2400×1800）
-- Photoshop：`D:/114514/Adobe/Adobe Photoshop 2023/Photoshop.exe`
-- Python：`E:/Anaconda3/python.exe`（需要 Pillow）
-- 直接接口：Windows PowerShell 5.1 的 COM `DoJavaScriptFile`，连接现有
-  Photoshop，未运行时自动启动。不要换成 PowerShell 7 的 COM 运行时。
-- 默认输出：`E:/project/周报图片设计/cover_runs`
-- 以上路径均可用环境变量覆盖（未设置时回退到上文本机路径）：
-  `WEEKLY_COVER_T1_SOURCE`、`WEEKLY_COVER_T2_SOURCE`、`WEEKLY_COVER_T3_SOURCE`、
-  `WEEKLY_COVER_PHOTOSHOP`、`WEEKLY_COVER_OUTPUT`。
+用户要求生成封面或角标时，可以从本仓库的 GitHub Release 下载对应 PSD 母版到
+本机，随后通过 Photoshop 原生接口使用。模板下载属于该生成流程的一部分，
+无需另让用户手动找文件；执行环境的联网和目录权限仍按实际规则申请。
+
+1. 查找可用的 Python 3.11+（封面需要 Pillow，角标还需要 numpy）和 Photoshop.exe。
+   优先使用用户配置、已运行 Photoshop 的可执行路径或本机安装路径，不能假定
+   示例中的盘符存在。原生接口使用 Windows PowerShell 5.1 STA。
+2. 检查所需模板路径。未配置本地模板或路径不存在时，运行：
+
+```powershell
+python '<skill>/scripts/download_templates.py'
+```
+
+   下载固定的 `templates-v1` Release；脚本校验文件大小、SHA256 和 PSD 画布尺寸。
+   封面下载 3 个文件（约 212 MiB），角标下载 1 个（约 45 MiB）。默认放到
+   `%LOCALAPPDATA%/Autoweekly/templates/templates-v1`，缺少 LOCALAPPDATA 时放到
+   `~/.cache/Autoweekly/templates/templates-v1`。已校验文件复用，失败临时文件清理，
+   校验失败的现存文件保留并报错；此时换目录下载，不能覆盖用户母版。
+3. 模板选择优先级：单模板环境变量 > 存在的旧版本机母版 > 默认缓存。
+   下载到其他目录时，用 `--directory '<目录>'`，并在后续命令同一环境设置
+   `AUTOWEEKLY_TEMPLATE_DIR`；若单模板变量指向不存在的文件，修正该变量或将下载
+   结果路径显式传入/设置为对应变量，避免继续使用无效路径。
+4. 将 Photoshop.exe 路径通过 `render --photoshop '<绝对路径>'` 传入；封面的 refine
+   也支持同一参数。确认模板后执行 prepare，再 render。prepare 会复制母版到独立
+   批次，Photoshop 打开副本执行 JSX；下载不等于已经导入、渲染或验收成功。
+
+详细母版下载与图层契约见 [references/templates.md](references/templates.md)。
+模板不含字体安装包；缺字体时说明缺失的 PostScript 名称，由用户安装后继续。
 
 ## 输入
 
@@ -38,7 +53,7 @@ description: 用 CG 立绘和三个周报封面模板，通过 Photoshop 原生�
 1. 准备批次（CG × 模板的跨乘积）：
 
 ```powershell
-& 'E:/Anaconda3/python.exe' '<skill>/scripts/cover.py' prepare --cg '<cg1.png>' --cg '<cg2.png>' --template all --output 'E:/project/周报图片设计/cover_runs'
+python '<skill>/scripts/cover.py' prepare --cg '<cg1.png>' --cg '<cg2.png>' --template all --output '<工作区>/cover_runs'
 ```
 
    `--template` 取 `1`、`2`、`3` 或 `all`。日期覆盖用
@@ -48,7 +63,7 @@ description: 用 CG 立绘和三个周报封面模板，通过 Photoshop 原生�
 2. 直接调用 Photoshop 渲染并自动核验：
 
 ```powershell
-& 'E:/Anaconda3/python.exe' '<skill>/scripts/cover.py' render '<run_dir>'
+python '<skill>/scripts/cover.py' render '<run_dir>' --photoshop '<Photoshop.exe绝对路径>'
 ```
 
    render 使用独立的 Windows PowerShell 5.1 STA 辅助进程，调用一次
@@ -59,7 +74,7 @@ description: 用 CG 立绘和三个周报封面模板，通过 Photoshop 原生�
 3. 可选：T2 横幅底色校色。T2 原始底为紫粉渐变，若 CG 是冷蓝调：
 
 ```powershell
-& 'E:/Anaconda3/python.exe' '<skill>/scripts/cover.py' refine '<run_dir>'
+python '<skill>/scripts/cover.py' refine '<run_dir>' --photoshop '<Photoshop.exe绝对路径>'
 ```
 
    refine 把 T2 的背景与纯色层按蓝调偏移（色相 -90、饱和 -30、明度 +8），
@@ -68,9 +83,9 @@ description: 用 CG 立绘和三个周报封面模板，通过 Photoshop 原生�
 4. 查询状态 / 单独核验 / 记录目视检查：
 
 ```powershell
-& 'E:/Anaconda3/python.exe' '<skill>/scripts/cover.py' status '<run_dir>'
-& 'E:/Anaconda3/python.exe' '<skill>/scripts/cover.py' verify '<run_dir>'
-& 'E:/Anaconda3/python.exe' '<skill>/scripts/cover.py' review '<run_dir>' --note '<检查结论>'
+python '<skill>/scripts/cover.py' status '<run_dir>'
+python '<skill>/scripts/cover.py' verify '<run_dir>'
+python '<skill>/scripts/cover.py' review '<run_dir>' --note '<检查结论>'
 ```
 
    `rendered` 只表示 Photoshop 导出完成，`verified` 才表示尺寸与可读性

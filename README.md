@@ -28,36 +28,88 @@ Computer Use，也不需要模拟点击界面**。
 点击图片可查看原尺寸。
 
 > 预览中的 CG 立绘、曲目与作者信息仅用于演示效果，版权归原作者 / 发行方
-> 所有；仓库不分发 PSD 母版、字体或客户素材。
+> 所有。母版通过 Release 分发；字体与原始 CG 不随本仓库或 Release 分发。
 
-## 目录结构
+## 三步上手
 
-```
-weekly-bgm-overlay/
-  SKILL.md
-  agents/openai.yaml
-  references/task-schema.md
-  scripts/overlay.py
-  scripts/runtime/...
+以下命令在 PowerShell 中执行，`python` 指向 Python 3.11 或更高版本。
 
-weekly-cover/
-  SKILL.md
-  references/templates.md
-  scripts/cover.py
-  scripts/runtime/...
+### 1. 安装 skill
+
+```powershell
+git clone https://github.com/GalgameCriticism/Autoweekly-skills.git
+Copy-Item -Recurse .\Autoweekly-skills\weekly-cover "$env:USERPROFILE\.codex\skills\weekly-cover"
+Copy-Item -Recurse .\Autoweekly-skills\weekly-bgm-overlay "$env:USERPROFILE\.codex\skills\weekly-bgm-overlay"
 ```
 
-每个文件夹都是一个独立 skill：把安装器指向含 `SKILL.md` 的目录即可，例如
-`.../Autoweekly-skills/weekly-cover`。
+如果目录已存在，自行决定如何合并或更新，不要盲目覆盖已有配置。
+
+安装 Python 依赖：`python -m pip install Pillow numpy`。
+
+### 2. 下载母版
+
+智能体首次使用时可以自动执行以下下载步骤。手动安装时，每个 skill 运行一次即可，
+脚本会自动下载到默认缓存目录，并做 SHA256
+和 PSD 尺寸校验：
+
+```powershell
+python "$env:USERPROFILE\.codex\skills\weekly-cover\scripts\download_templates.py"
+python "$env:USERPROFILE\.codex\skills\weekly-bgm-overlay\scripts\download_templates.py"
+```
+
+默认缓存目录：
+
+- 优先使用 `$env:LOCALAPPDATA\Autoweekly\templates\templates-v1`
+- 没有 `LOCALAPPDATA` 时回退到 `~/.cache/Autoweekly/templates/templates-v1`
+
+需要下载到其他目录时，先用 `--directory` 指定位置，再让 skill 使用它：
+
+```powershell
+python '<skill>\scripts\download_templates.py' --directory 'D:/Autoweekly/templates'
+$env:AUTOWEEKLY_TEMPLATE_DIR = 'D:/Autoweekly/templates'
+```
+
+### 3. 使用
+
+告诉智能体 Photoshop 的安装位置，或让它从本机安装信息中查找。
+手动执行命令时，先把下面路径改为自己的 `Photoshop.exe`：
+
+```powershell
+$photoshop = 'C:/Program Files/Adobe/Adobe Photoshop 2023/Photoshop.exe'
+$env:WEEKLY_COVER_PHOTOSHOP = $photoshop
+$env:WEEKLY_OVERLAY_PHOTOSHOP = $photoshop
+```
+
+直接在聊天里说一句话即可，例如：
+
+- 封面：**"用这张 CG 生成本周的三种周报封面，输出到
+  `./output/covers`。"**
+- 角标：**"本周 BGM 是折戸伸治的《夏休みの過ごし方》，生成新作和汉化角标，
+  输出到 `./output/overlays`。"**
+
+智能体需要实际跑命令时，典型流程是先用 `prepare --output` 建独立批次，
+再 `render` 调用 Photoshop：
+
+```powershell
+python '<skill>/scripts/cover.py' prepare --cg '<cg.png>' --template all --output './output/covers'
+python '<skill>/scripts/cover.py' render '<run_dir>'
+
+python '<skill>/scripts/overlay.py' prepare --input '<input.txt>' --output './output/overlays'
+python '<skill>/scripts/overlay.py' render '<run_dir>'
+```
+
+输出目录由 `prepare --output` 决定，建议始终指向你自己的工作区，不要依赖
+作者本机的默认输出路径。
 
 ## 运行环境
 
-- Windows，且已安装 Adobe Photoshop 2023 或更高版本。
-- Python 3，并安装 `Pillow`（`weekly-bgm-overlay` 还需要 `numpy`）。
-- COM 桥接必须用 Windows PowerShell 5.1（不要用 PowerShell 7 跑 COM）。
-- 需要 4 个 PSD 母版，见下方「模板下载」。
+- Windows，已安装 Adobe Photoshop 2023 或更高版本。
+- Python 3.11+（模板校验使用 `hashlib.file_digest`）。
+- Python 包：`Pillow`；`weekly-bgm-overlay` 还需要 `numpy`。
+- COM 桥接使用 Windows PowerShell 5.1。
+- 角标母版需安装 MiSans-Semibold、MiSans-Regular、NotoSerifCJKsc-SemiBold 对应字体。
 
-## 模板下载
+## 母版列表
 
 母版合计约 257 MB，不纳入 git 历史，统一作为 Release 附件分发：
 
@@ -70,42 +122,69 @@ weekly-cover/
 | `weekly-cover-t3-4x3.psd` | `weekly-cover` T3 4:3 | 2400×1800 | 90.0 MB |
 | `weekly-bgm-overlay-master.psd` | `weekly-bgm-overlay` 角标母版 | 2160×1080 | 44.7 MB |
 
-下载后可校验：
+下载脚本会自动校验 SHA256 和 PSD 尺寸。手动校验时：
 
 ```powershell
 Get-FileHash .\weekly-cover-t1-16x9.psd -Algorithm SHA256
 ```
 
-期望哈希见 [Release 说明](https://github.com/GalgameCriticism/Autoweekly-skills/releases/tag/templates-v1)
-或各 skill 的 `references/` 文档。
+期望哈希见 Release 说明或各 skill 的 `references/` 文档。
 
-## 路径配置
+## 模板优先级
 
-两个 skill 默认指向作者本机路径。请用环境变量覆盖成你自己的路径；未设置时
-回退到作者默认值。
+skill 按以下顺序解析模板：
 
-`weekly-cover`
+1. 单模板环境变量，例如 `WEEKLY_COVER_T1_SOURCE`、`WEEKLY_OVERLAY_TEMPLATE`。
+2. 原作者母版路径（如果这台机器上仍然存在）。
+3. 下载脚本写入的默认缓存或 `AUTOWEEKLY_TEMPLATE_DIR` 指定的缓存。
 
-- `WEEKLY_COVER_T1_SOURCE` —— 16:9 模板 PSD
-- `WEEKLY_COVER_T2_SOURCE` —— 横幅模板 PSD
-- `WEEKLY_COVER_T3_SOURCE` —— 4:3 模板 PSD
-- `WEEKLY_COVER_PHOTOSHOP` —— `Photoshop.exe` 路径
-- `WEEKLY_COVER_OUTPUT` —— 默认输出目录
+显式设置的单模板变量始终优先，路径无效时会报错，请修正或移除该变量。
+新环境下载到默认缓存后，无需再手填四个模板路径。
 
-`weekly-bgm-overlay`
+## 进阶配置
 
-- `WEEKLY_OVERLAY_TEMPLATE` —— 角标母版 PSD
-- `WEEKLY_OVERLAY_PHOTOSHOP` —— `Photoshop.exe` 路径
+只有需要自定义 Photoshop 或模板位置时才设置下面的环境变量。
 
-## 安装
+<details>
+<summary>环境变量表</summary>
 
-```powershell
-git clone https://github.com/GalgameCriticism/Autoweekly-skills.git
-Copy-Item -Recurse .\Autoweekly-skills\weekly-cover "$env:USERPROFILE\.codex\skills\weekly-cover"
-Copy-Item -Recurse .\Autoweekly-skills\weekly-bgm-overlay "$env:USERPROFILE\.codex\skills\weekly-bgm-overlay"
+| 变量 | 作用 |
+| --- | --- |
+| `WEEKLY_COVER_T1_SOURCE` | T1 16:9 封面母版 PSD |
+| `WEEKLY_COVER_T2_SOURCE` | T2 横幅母版 PSD |
+| `WEEKLY_COVER_T3_SOURCE` | T3 4:3 母版 PSD |
+| `WEEKLY_OVERLAY_TEMPLATE` | BGM 角标母版 PSD |
+| `AUTOWEEKLY_TEMPLATE_DIR` | 覆盖模板缓存目录 |
+| `WEEKLY_COVER_PHOTOSHOP` | `Photoshop.exe` 路径 |
+| `WEEKLY_OVERLAY_PHOTOSHOP` | `Photoshop.exe` 路径 |
+
+</details>
+
+## 目录结构
+
 ```
+weekly-bgm-overlay/
+  SKILL.md
+  agents/openai.yaml
+  references/task-schema.md
+  scripts/download_templates.py
+  scripts/overlay.py
+  scripts/runtime/...
+
+weekly-cover/
+  SKILL.md
+  references/templates.md
+  scripts/download_templates.py
+  scripts/cover.py
+  scripts/runtime/...
+```
+
+每个文件夹都是一个独立 skill：把安装器指向含 `SKILL.md` 的目录即可，例如
+`.../Autoweekly-skills/weekly-cover`。
 
 ## 说明
 
-- PSD 母版、字体、客户素材均不纳入版本库。
-- 渲染按运行目录确定且可重复；每次运行都会写出 `job.json` 及核验记录。
+- 母版 PSD 通过 Release 分发；字体与原始 CG 不随本仓库或 Release 分发。
+- 每次渲染前先 `prepare` 创建独立批次；已提交的批次会拒绝再次提交，
+  避免重复渲染。
+- 渲染完成后程序核验只确认尺寸与可读性，仍需人工目视检查关键效果。
