@@ -9,6 +9,13 @@ description: 用 CG 立绘和三个周报封面模板，通过 Photoshop 原生�
 导出 PNG / JPG / 带图层的 PSD。自动从 CG 边缘主色推导背景色，并按模板
 几何摆放人物，避免人脸被标题文字或画布裁切遮挡。
 
+## 通用智能体调用
+
+可以在 WorkBuddy 或其他支持本地文件、终端和看图的智能体中使用。
+本目录即完整技能包，调用不依赖 Codex 工具名称、安装目录或模型。
+首次在其他平台运行时读 [references/agent-usage.md](references/agent-usage.md)，
+并用 `python '<skill>/scripts/doctor.py'` 获取环境与命令路径。以下流程保持一致。
+
 ## 首次使用：下载模板并连接 Photoshop
 
 用户要求生成封面或角标时，可以从本仓库的 GitHub Release 下载对应 PSD 母版到

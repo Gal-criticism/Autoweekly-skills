@@ -7,6 +7,7 @@ __pycache__/
 cover_runs/
 runs/
 output/
+dist/
 
 # OS / editor
 Thumbs.db

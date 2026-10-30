@@ -1,6 +1,6 @@
 # Autoweekly Skills
 
-两个独立的 Codex skill，用于借助 Adobe Photoshop 生成 Galgame 周报配图。
+两个独立的 skill，可由 Codex、WorkBuddy 等本地智能体调用，用于借助 Adobe Photoshop 生成 Galgame 周报配图。
 全部通过 Photoshop 原生 COM / `DoJavaScriptFile` 接口驱动，**不依赖
 Computer Use，也不需要模拟点击界面**。
 
@@ -8,6 +8,29 @@ Computer Use，也不需要模拟点击界面**。
 | --- | --- |
 | `weekly-bgm-overlay` | 根据 BGM 信息，批量生成新作 / 汉化 / 周边 / 简讯四栏的透明 PNG 辅助角标。 |
 | `weekly-cover` | 把 CG 立绘放进三个封面模板（16:9、横幅、4:3），按 CG 边缘主色自动配色，并避开人脸遮挡。 |
+
+## 在其他智能体中调用
+
+同一份 skill 也可交给 **WorkBuddy 等具备本地文件、终端和看图能力的智能体**执行。
+模板选择和 Photoshop 渲染流程保持一致，按平台自己的安装入口导入即可。
+
+| 使用方式 | 操作 |
+| --- | --- |
+| WorkBuddy 本地导入 | 下载下方独立 ZIP，在「技能 → 添加技能 → 上传技能」中导入 |
+| 其他支持 skill 的客户端 | 将完整技能文件夹放入该平台配置的技能目录 |
+| 没有技能导入入口 | 让智能体读取本地 `SKILL.md` 绝对路径，按文档执行脚本 |
+
+**[下载通用导入包](https://github.com/GalgameCriticism/Autoweekly-skills/releases/tag/skills-portable-v1)**：
+`weekly-cover.zip` / `weekly-bgm-overlay.zip`。每个包的根目录含 `SKILL.md`、脚本和参考文档，
+PSD 仍由下载脚本另行获取。需要重新打包时运行 `python tools/package_skills.py`。
+
+首次调用可让智能体运行 `python '<skill>/scripts/doctor.py'`，读取 JSON 中的依赖、
+模板路径和 Photoshop 路径建议，再用 `--photoshop`、`--output` 显式传参。
+诊断不会启动 Photoshop 或改配置；字体与实际渲染仍需后续检查。
+
+更多约定见[智能体兼容说明](docs/agent-compatibility.md)。WorkBuddy 的本地包导入方式依据
+[官方文档](https://www.workbuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/Skills-Market)；
+当前验证覆盖独立包解压后的脚本调用，未实测其他客户端的导入界面。
 
 ## 效果预览
 
