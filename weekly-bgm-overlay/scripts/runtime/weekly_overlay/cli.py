@@ -87,12 +87,10 @@ def load_job(folder):
     if Path(job["source_template"]).samefile(job["template"]):
         raise ValueError("Invalid source identity: source and staged PSD are aliases")
     driver = (folder / "run.jsx").read_text(encoding="utf-8")
-    invocation = "\nweeklyOverlayRender("
-    if invocation not in driver or not driver.endswith(");\n"):
-        raise ValueError("Invalid prepared driver")
-    embedded = json.loads(driver.rsplit(invocation, 1)[1][:-3])
-    if embedded != job:
-        raise ValueError("Job manifest differs from the executed driver")
+    expected = ('#target photoshop\n' + (ROOT / "photoshop" / "render.jsx").read_text(encoding="utf-8") +
+                "\nweeklyOverlayRender(" + json.dumps(job, ensure_ascii=True) + ");\n")
+    if driver != expected:
+        raise ValueError("Prepared driver differs from the installed engine and validated job")
     if sha256(job["source_template"]) != job["source_sha256"] or sha256(job["template"]) != job["source_sha256"]:
         raise ValueError("Source or staged PSD changed")
     return job

@@ -74,6 +74,9 @@ def main():
         "templates": templates, "photoshop": selected, "photoshop_exists": ps_exists,
         "photoshop_candidates": candidates, "powershell51_exists": powershell_exists,
         "probe_errors": PROBE_ERRORS,
+        "render_supported": sys.platform == "win32",
+        "render_limitation": None if sys.platform == "win32" else
+            "Native rendering currently requires Windows PowerShell 5.1 and Photoshop COM; macOS is not supported.",
         "prepare_ready": prepare_ready, "render_prerequisites_found": render_prerequisites,
         "fonts_checked": False, "photoshop_started": False,
         "commands": {

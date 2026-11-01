@@ -132,3 +132,9 @@ python '<skill>/scripts/overlay.py' verify '<run_dir>'
    棋盘底纹仅用于 preview.jpg，PNG 保持 2160×1080 完整透明画布。
    不裁成文字小图，不覆盖母版，不保存用户已打开文档。
    所有临时 PSD 与日志位于独立批次中，不擅自清理历史输出。
+
+## 平台和安全前提
+
+原生渲染目前仅支持 Windows PowerShell 5.1 + Photoshop COM。macOS 可做下载和部分准备，不能调用现有 render/refine 完成渲染；`doctor` 的 `render_supported=false` 是明确的平台限制，不能用“已安装 Photoshop”替代检查。不自动新增 AppleScript、界面模拟或关闭系统保护的回退方案。
+
+只使用本机 prepare 生成的独立批次。渲染入口核对 JSX 必须与已安装引擎及批次数据完全一致，不执行额外代码。不要手动打开本批模板再启动渲染；保留已有文档、输出和提交回执。未知结果先检查状态，不重复提交。

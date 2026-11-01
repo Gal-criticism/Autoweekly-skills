@@ -46,6 +46,21 @@ function renderCovers(job) {
     var previous=app.documents.length?app.activeDocument:null,dialogs=app.displayDialogs,units=app.preferences.rulerUnits,doc=null;
     try {
         app.fonts.getByName("CormorantGaramond-Bold");
+        // Refuse the whole batch before opening or modifying any document.
+        for (var check=0;check<job.covers.length;check++) {
+            var entry=job.covers[check], source=File(entry.template).fsName;
+            for(var openIndex=0;openIndex<app.documents.length;openIndex++) {
+                var opened=null;
+                try { opened=app.documents[openIndex].fullName.fsName; } catch(ignore) {}
+                if(opened===source) throw Error("Batch template is already open; preserve unsaved edits");
+            }
+            var outputDir=entry.output_dir || job.output_dir;
+            for(var extIndex=0;extIndex<3;extIndex++) {
+                var extension=["psd","png","jpg"][extIndex];
+                if(File(outputDir+"/"+entry.filename+"."+extension).exists)
+                    throw Error("Output exists; not overwriting "+entry.filename+"."+extension);
+            }
+        }
         app.displayDialogs=DialogModes.NO;app.preferences.rulerUnits=Units.PIXELS;
         for(var i=0;i<job.covers.length;i++){
             var spec=job.covers[i];doc=app.open(File(spec.template));

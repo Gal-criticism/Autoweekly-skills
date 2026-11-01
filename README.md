@@ -138,6 +138,14 @@ python '<skill>/scripts/overlay.py' render '<run_dir>'
 输出目录由 `prepare --output` 决定，建议始终指向你自己的工作区，不要依赖
 作者本机的默认输出路径。
 
+## macOS 适用性
+
+目前 **Photoshop 封面/角标的原生渲染，以及 AE 片头/片尾的原生渲染均只支持 Windows**。封面/角标通过 Windows PowerShell 5.1 + COM，片头/片尾通过 Windows 专用原生进程控制执行；安装 macOS 版 Adobe 应用不会自动使这些入口可用。
+
+macOS 可做模板下载、部分素材准备、静态检查及离线测试；`doctor` 会明确报告 `render_supported=false`，不能把离线检查通过当成已在 Mac 渲染成功。请使用 Python 3.11+ 的明确路径创建虚拟环境；部分 Mac 的系统 `python3` 是 3.9。
+
+试用封面时使用本机生成的独立批次，不把别人提供的 run 目录当成可执行任务。渲染会重新从已安装引擎生成 JSX，核对暂存素材哈希和输出路径；并发提交、已有输出、已打开的同批模板都会停止，避免覆盖或丢失编辑。历史批次和失败回执保留供检查，不通过删除回执盲目重跑。
+
 ## 运行环境
 
 - Windows，已安装 Adobe Photoshop 2023 或更高版本。
