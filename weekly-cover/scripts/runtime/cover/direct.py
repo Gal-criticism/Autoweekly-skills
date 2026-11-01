@@ -9,6 +9,7 @@ import subprocess
 import sys
 
 from .cli import read_json, save_json, sha256
+from .safety import claim_dispatch
 
 
 def run_photoshop(folder, photoshop, driver_name="run.jsx", result_path=None,
@@ -46,7 +47,7 @@ def run_photoshop(folder, photoshop, driver_name="run.jsx", result_path=None,
         "driver_sha256": sha256(driver),
         "submitted_at": datetime.now().astimezone().isoformat(),
     }
-    receipt_path.write_text(json.dumps(receipt, ensure_ascii=False, indent=2), encoding="utf-8")
+    claim_dispatch(receipt_path, receipt)
 
     try:
         process = subprocess.Popen(

@@ -2,6 +2,21 @@ function refineCoverBackgroundBatch(job) {
     var previous=app.documents.length?app.activeDocument:null,doc=null,dialogs=app.displayDialogs;
     var results=[];
     try {
+        // Refuse the whole batch before opening or modifying any document.
+        for (var check=0;check<job.items.length;check++) {
+            var entry=job.items[check], source=File(entry.template).fsName;
+            for(var openIndex=0;openIndex<app.documents.length;openIndex++) {
+                var opened=null;
+                try { opened=app.documents[openIndex].fullName.fsName; } catch(ignore) {}
+                if(opened===source) throw Error("Batch template is already open; preserve unsaved edits");
+            }
+            var outputDir=entry.output_dir || job.output_dir;
+            for(var extIndex=0;extIndex<3;extIndex++) {
+                var extension=["psd","png","jpg"][extIndex];
+                if(File(outputDir+"/"+entry.filename+"."+extension).exists)
+                    throw Error("Output exists; not overwriting "+entry.filename+"."+extension);
+            }
+        }
         app.displayDialogs=DialogModes.NO;
         for(var n=0;n<job.items.length;n++){
             var spec=job.items[n];

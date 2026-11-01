@@ -116,3 +116,9 @@ python '<skill>/scripts/cover.py' review '<run_dir>' --note '<检查结论>'
 
 交付 PNG/JPG/PSD 路径、`contact_sheet.jpg` 九宫格和日期。保留模板母版
 与用户原始 CG 不动，所有操作在独立批次副本上执行，不清理历史输出。
+
+## 平台和安全前提
+
+原生渲染目前仅支持 Windows PowerShell 5.1 + Photoshop COM。macOS 可做下载和部分准备，不能调用现有 render/refine 完成渲染；`doctor` 的 `render_supported=false` 是明确的平台限制，不能用“已安装 Photoshop”替代检查。不自动新增 AppleScript、界面模拟或关闭系统保护的回退方案。
+
+只使用本机 prepare 生成的独立批次。渲染入口从已安装的引擎重建 JSX，不信任批次携带的可执行脚本。不要手动打开本批模板再启动渲染；保留已有文档、输出和提交回执。未知结果先检查状态，不重复提交。

@@ -10,6 +10,8 @@ import shutil
 import sys
 import uuid
 
+from .safety import validate_batch, write_driver
+
 from .model import (
     DEFAULT_TEMPLATES,
     T2_REFINE,
@@ -259,6 +261,10 @@ def verify(args):
 def render(args):
     from .direct import run_photoshop
     folder = Path(args.run_dir).resolve(strict=True)
+    job = load_job(folder)
+    validate_batch(folder, job, sha256)
+    # Never execute a driver received inside a run folder. Rebuild from our engine and validated data.
+    write_driver(folder, ROOT / "photoshop" / "render_covers.jsx", job)
     run_photoshop(folder, args.photoshop, driver_name="run.jsx", result_path=folder / "covers_result.json", timeout=args.timeout)
     return verify(args)
 
@@ -267,10 +273,13 @@ def refine(args):
     from .direct import run_photoshop
     folder = Path(args.run_dir).resolve(strict=True)
     job = load_job(folder)
+    validate_batch(folder, job, sha256, check_outputs=False)
     t2_covers = [cover for cover in job["covers"] if cover["filename"].startswith("T2_")]
     if not t2_covers:
         raise ValueError("This run has no T2 covers to refine")
     out_dir = folder / "refined"
+    if out_dir.is_symlink():
+        raise ValueError("Refined directory cannot be a symlink")
     out_dir.mkdir(exist_ok=True)
     items = []
     for cover in t2_covers:
@@ -290,11 +299,8 @@ def refine(args):
         })
     refine_job = {"run_id": job["run_id"] + "-t2-refine", "output_dir": str(out_dir), "items": items}
     save_json(folder / "refine_job.json", refine_job)
-    engine = (ROOT / "photoshop" / "refine_cover_background_batch.jsx").read_text(encoding="utf-8")
-    (folder / "refine_run.jsx").write_text(
-        "#target photoshop\n" + engine + "\nrefineCoverBackgroundBatch(" + json.dumps(refine_job, ensure_ascii=True) + ");\n",
-        encoding="utf-8",
-    )
+    write_driver(folder, ROOT / "photoshop" / "refine_cover_background_batch.jsx", refine_job,
+                 entry="refineCoverBackgroundBatch", driver_name="refine_run.jsx")
     run_photoshop(folder, args.photoshop, driver_name="refine_run.jsx", result_path=out_dir / "refine_batch_result.json",
                   dispatch_name="refine_dispatch.json", timeout=args.timeout)
     records = verify_outputs(out_dir, {"covers": [dict(cover, filename=cover["filename"]) for cover in t2_covers]})
