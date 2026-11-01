@@ -44,10 +44,9 @@ DEFAULT_TEMPLATES = {
         ),
         "size": [2400, 1800],
         "layers": [135, 136],
-        # The 4:3 canvas would otherwise cover-crop a 16:9 CG and blow up the
-        # face. This box is a contain fit shifted down so the face clears the
-        # top-right "VOL" title text and keeps the bottom on the gradient band.
-        "box": [0, 260, 2400, 1611],
+        # Cover the entire 4:3 canvas with an aspect-preserving crop; never
+        # contain a wide CG and leave empty bands above or below it.
+        "box": [0, 0, 2400, 1800],
         "hide": [1012, 1013],
         "has_date": False,
     },

@@ -11,8 +11,8 @@ function refineCoverBackgroundBatch(job) {
                 if(opened===source) throw Error("Batch template is already open; preserve unsaved edits");
             }
             var outputDir=entry.output_dir || job.output_dir;
-            for(var extIndex=0;extIndex<3;extIndex++) {
-                var extension=["psd","png","jpg"][extIndex];
+            for(var extIndex=0;extIndex<1;extIndex++) {
+                var extension=["png"][extIndex];
                 if(File(outputDir+"/"+entry.filename+"."+extension).exists)
                     throw Error("Output exists; not overwriting "+entry.filename+"."+extension);
             }
@@ -40,10 +40,7 @@ function refineCoverBackgroundBatch(job) {
                 rgb.putDouble(charIDToTypeID("Rd  "),fill.rgb[0]);rgb.putDouble(charIDToTypeID("Grn "),fill.rgb[1]);rgb.putDouble(charIDToTypeID("Bl  "),fill.rgb[2]);
                 to.putObject(charIDToTypeID("Clr "),charIDToTypeID("RGBC"),rgb);set.putObject(charIDToTypeID("T   "),stringIDToTypeID("solidColorLayer"),to);executeAction(charIDToTypeID("setd"),set,DialogModes.NO);
             }
-            var psd=new PhotoshopSaveOptions();psd.layers=true;psd.embedColorProfile=true;
-            doc.saveAs(File(spec.output_dir+"/"+spec.filename+".psd"),psd,true,Extension.LOWERCASE);
             var png=new PNGSaveOptions();png.compression=6;doc.saveAs(File(spec.output_dir+"/"+spec.filename+".png"),png,true,Extension.LOWERCASE);
-            var jpg=new JPEGSaveOptions();jpg.quality=11;doc.saveAs(File(spec.output_dir+"/"+spec.filename+".jpg"),jpg,true,Extension.LOWERCASE);
             doc.close(SaveOptions.DONOTSAVECHANGES);doc=null;
             results.push({filename:spec.filename,status:"rendered"});
         }

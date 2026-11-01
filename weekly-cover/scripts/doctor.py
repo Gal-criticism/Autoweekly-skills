@@ -36,7 +36,10 @@ def photoshop_candidates(default):
                     candidates.extend(str(path) for path in sorted((Path(os.environ[variable]) / "Adobe").glob("Adobe Photoshop */Photoshop.exe"), reverse=True))
                 except OSError as error:
                     PROBE_ERRORS.append({"path": os.environ[variable], "error": str(error)})
-    return list(dict.fromkeys(str(Path(path).resolve()) for path in candidates if path and is_file(path)))
+    elif sys.platform == "darwin":
+        candidates.extend(str(path) for path in sorted(Path("/Applications").glob("Adobe Photoshop */Adobe Photoshop *.app"), reverse=True))
+    return list(dict.fromkeys(str(Path(path).resolve()) for path in candidates if path and
+                             (Path(path).is_dir() if sys.platform == "darwin" else is_file(path))))
 
 
 def main():
@@ -61,11 +64,12 @@ def main():
         load_error = str(error)
     candidates = photoshop_candidates(default_ps)
     selected = str(Path(args.photoshop).expanduser().resolve()) if args.photoshop else (candidates[0] if candidates else None)
-    ps_exists = bool(selected and is_file(selected) and Path(selected).suffix.lower() == ".exe")
+    ps_exists = bool(selected and (Path(selected).is_dir() and Path(selected).suffix == ".app"
+                                  if sys.platform == "darwin" else is_file(selected) and Path(selected).suffix.lower() == ".exe"))
     powershell = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
     prepare_ready = sys.version_info >= (3, 11) and all(dependencies.values()) and not load_error and bool(templates) and all(item["exists"] for item in templates)
     powershell_exists = is_file(powershell)
-    render_prerequisites = prepare_ready and sys.platform == "win32" and powershell_exists and ps_exists
+    render_prerequisites = prepare_ready and ps_exists and (sys.platform == "darwin" or (sys.platform == "win32" and powershell_exists))
     response = {
         "status": "prerequisites_found" if render_prerequisites else "setup_required",
         "skill_dir": str(scripts.parent), "python": sys.executable,
@@ -74,9 +78,11 @@ def main():
         "templates": templates, "photoshop": selected, "photoshop_exists": ps_exists,
         "photoshop_candidates": candidates, "powershell51_exists": powershell_exists,
         "probe_errors": PROBE_ERRORS,
-        "render_supported": sys.platform == "win32",
-        "render_limitation": None if sys.platform == "win32" else
-            "Native rendering currently requires Windows PowerShell 5.1 and Photoshop COM; macOS is not supported.",
+        "render_supported": sys.platform in ("win32", "darwin"),
+        "direct_invocation_supported": sys.platform == "win32",
+        "render_transport": "macos-photoshop-script-menu" if sys.platform == "darwin" else "powershell51-com",
+        "render_limitation": "macOS stages a JSX; run it once via Photoshop File > Scripts > Browse, then verify. No app is launched automatically." if sys.platform == "darwin" else
+            (None if sys.platform == "win32" else "Photoshop rendering requires Windows or macOS."),
         "prepare_ready": prepare_ready, "render_prerequisites_found": render_prerequisites,
         "fonts_checked": False, "photoshop_started": False,
         "commands": {

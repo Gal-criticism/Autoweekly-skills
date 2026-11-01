@@ -1,4 +1,3 @@
-# Created by Miyin
 """Validate frozen cover assets before generating an executable JSX driver."""
 import re
 from pathlib import Path
@@ -28,6 +27,9 @@ def validate_batch(folder, job, sha256, check_outputs=True):
                                              "templates", spec["sha256"])
     images = {str(staged_file(cg["path"], "cg", cg["sha256"])) for cg in job["cgs"]}
     names = set()
+    working = folder / "working"
+    if working.is_symlink():
+        raise ValueError("Working directory cannot be a symlink")
     if not job.get("covers"):
         raise ValueError("No covers")
     for cover in job["covers"]:
@@ -35,6 +37,8 @@ def validate_batch(folder, job, sha256, check_outputs=True):
         if not re.fullmatch(r"T[123]_CG[1-9][0-9]*", name) or name in names:
             raise ValueError("Unsafe or duplicate cover output filename")
         names.add(name)
+        if check_outputs and cover.get("date") and (working / f"{name}.psd").exists():
+            raise FileExistsError("Working PSD already exists; not overwriting")
         if Path(cover["template"]).resolve() != templates.get(name[1]):
             raise ValueError("Cover template is not the staged template")
         for replacement in cover["replacements"]:
