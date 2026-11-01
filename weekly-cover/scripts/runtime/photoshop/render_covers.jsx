@@ -41,11 +41,44 @@ function renderCovers(job) {
         c.putDouble(charIDToTypeID("Rd  "),rgb[0]);c.putDouble(charIDToTypeID("Grn "),rgb[1]);c.putDouble(charIDToTypeID("Bl  "),rgb[2]);
         to.putObject(charIDToTypeID("Clr "),charIDToTypeID("RGBC"),c);d.putObject(charIDToTypeID("T   "),stringIDToTypeID("solidColorLayer"),to);executeAction(charIDToTypeID("setd"),d,DialogModes.NO);
     }
-    function fonts(container,report){for(var i=0;i<container.layers.length;i++){var l=container.layers[i];if(l.typename==="LayerSet")fonts(l,report);else if(l.kind===LayerKind.TEXT){var original=l.textItem.contents;l.textItem.font="CormorantGaramond-Bold";l.textItem.contents=original;report.push({id:l.id,text:original,font:l.textItem.font});}}}
+    function fonts(container,report){
+        for(var i=0;i<container.layers.length;i++){
+            var l=container.layers[i];
+            if(l.typename==="LayerSet")fonts(l,report);
+            else if(l.kind===LayerKind.TEXT){
+                app.activeDocument.activeLayer=l;
+                var ref=new ActionReference(),d=new ActionDescriptor(),style=new ActionDescriptor();
+                ref.putProperty(stringIDToTypeID("property"),stringIDToTypeID("textStyle"));
+                ref.putEnumerated(stringIDToTypeID("textLayer"),stringIDToTypeID("ordinal"),stringIDToTypeID("targetEnum"));
+                d.putReference(stringIDToTypeID("null"),ref);
+                style.putString(stringIDToTypeID("fontPostScriptName"),"CormorantGaramond-Bold");
+                style.putString(stringIDToTypeID("fontName"),"Cormorant Garamond");
+                style.putString(stringIDToTypeID("fontStyleName"),"Bold");
+                d.putObject(stringIDToTypeID("to"),stringIDToTypeID("textStyle"),style);
+                executeAction(stringIDToTypeID("set"),d,DialogModes.NO);
+                report.push({id:l.id,text:l.textItem.contents,font:l.textItem.font});
+            }
+        }
+    }
     var report={run_id:job.run_id,status:"failed",photoshop:app.version,outputs:[]};
     var previous=app.documents.length?app.activeDocument:null,dialogs=app.displayDialogs,units=app.preferences.rulerUnits,doc=null;
     try {
         app.fonts.getByName("CormorantGaramond-Bold");
+        // Refuse the whole batch before opening or modifying any document.
+        for (var check=0;check<job.covers.length;check++) {
+            var entry=job.covers[check], source=File(entry.template).fsName;
+            for(var openIndex=0;openIndex<app.documents.length;openIndex++) {
+                var opened=null;
+                try { opened=app.documents[openIndex].fullName.fsName; } catch(ignore) {}
+                if(opened===source) throw Error("Batch template is already open; preserve unsaved edits");
+            }
+            var outputDir=entry.output_dir || job.output_dir;
+            for(var extIndex=0;extIndex<1;extIndex++) {
+                var extension=["png"][extIndex];
+                if(File(outputDir+"/"+entry.filename+"."+extension).exists)
+                    throw Error("Output exists; not overwriting "+entry.filename+"."+extension);
+            }
+        }
         app.displayDialogs=DialogModes.NO;app.preferences.rulerUnits=Units.PIXELS;
         for(var i=0;i<job.covers.length;i++){
             var spec=job.covers[i];doc=app.open(File(spec.template));
@@ -53,11 +86,21 @@ function renderCovers(job) {
             for(var h=0;h<spec.hide.length;h++)one(doc,spec.hide[h]).visible=false;
             for(var j=0;j<spec.replacements.length;j++)item.replacements.push(replace(doc,spec.replacements[j]));
             fill(doc,919,spec.tint);fonts(doc,item.fonts);
+            if(spec.issue!==null && spec.issue!==undefined){
+                var issueLayer=one(doc,939),oldIssue=issueLayer.textItem.contents;
+                issueLayer.textItem.contents=/\d+/.test(oldIssue)?oldIssue.replace(/\d+/,String(spec.issue)):String(spec.issue);
+                item.issue=issueLayer.textItem.contents;
+            }
             if(spec.date){var date=one(doc,185),oldRight=box(date)[2];date.textItem.contents=spec.date;date.translate(UnitValue(oldRight-box(date)[2],"px"),UnitValue(0,"px"));item.date=spec.date;}
-            var psd=new PhotoshopSaveOptions();psd.layers=true;psd.embedColorProfile=true;
-            doc.saveAs(File(job.output_dir+"/"+spec.filename+".psd"),psd,true,Extension.LOWERCASE);
+            // Keep only the layered T2 working document needed by optional refine.
+            if(spec.date){
+                var working=Folder(job.output_dir+"/working");if(!working.exists)working.create();
+                var workingFile=File(working.fsName+"/"+spec.filename+".psd");
+                if(workingFile.exists)throw Error("Working PSD already exists");
+                var psd=new PhotoshopSaveOptions();psd.layers=true;psd.embedColorProfile=true;
+                doc.saveAs(workingFile,psd,true,Extension.LOWERCASE);
+            }
             var png=new PNGSaveOptions();png.compression=6;doc.saveAs(File(job.output_dir+"/"+spec.filename+".png"),png,true,Extension.LOWERCASE);
-            var jpg=new JPEGSaveOptions();jpg.quality=11;doc.saveAs(File(job.output_dir+"/"+spec.filename+".jpg"),jpg,true,Extension.LOWERCASE);
             doc.close(SaveOptions.DONOTSAVECHANGES);doc=null;
             report.outputs.push(item);write(report);
         }

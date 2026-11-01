@@ -20,7 +20,7 @@ class TemplateAssetsTests(unittest.TestCase):
                 spec = importlib.util.spec_from_file_location("assets", ROOT / skill / "scripts/runtime/template_assets.py")
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
-                folder = Path(directory)
+                folder = Path(directory).resolve()
                 payload = b"8BPS\x00\x01" + b"\x00" * 6 + struct.pack(">HIIHH", 3, 20, 40, 8, 3)
                 module.ASSETS = {"test.psd": (len(payload), hashlib.sha256(payload).hexdigest(), (40, 20))}
 
