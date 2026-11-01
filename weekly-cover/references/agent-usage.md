@@ -35,6 +35,4 @@ python '<skill>/scripts/doctor.py' --photoshop 'D:/Adobe/Photoshop.exe'
 - 同一批次只提交一次。超时先调用 status 并读结果，不能直接重试 render。
 - 无图片查看能力时交付预览供用户检查，不要自动填写 review 或宣称视觉验收通过。
 
-渲染必须在安装了 Photoshop 的 Windows 电脑上执行，使用 Windows PowerShell 5.1
-和桌面会话。云端沙箱不会自动获得用户本机的 Photoshop。跨智能体兼容与跨操作系统
-是两件事；当前未提供 macOS/Linux 渲染接口。
+渲染需要本机 Photoshop。Windows 通过 PowerShell 5.1 COM 直接调用；macOS 的 render 只返回一次性 JSX，在 Photoshop「文件 → 脚本 → 浏览」执行后再 verify。没有电脑操作能力的智能体应把脚本路径交给用户，不能宣称渲染已完成。Linux 没有原生渲染入口。

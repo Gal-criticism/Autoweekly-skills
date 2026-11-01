@@ -1,8 +1,8 @@
 # Autoweekly Skills
 
 四个独立的 skill，可由 Codex、WorkBuddy 等本地智能体调用，生成 Galgame 周报配图、片头和片尾。
-封面、角标通过 Photoshop 原生 COM / `DoJavaScriptFile` 驱动；片头使用
-After Effects 独立后台实例、JSX 与 aerender。**均不依赖 Computer Use 或模拟点击界面**。
+Windows 封面、角标通过 Photoshop 原生 COM / `DoJavaScriptFile` 驱动；Mac 封面通过 Photoshop 脚本菜单执行一次性 JSX。片头使用
+After Effects 独立后台实例、JSX 与 aerender。Windows 原生调用不依赖模拟点击；Mac 封面的脚本菜单可由用户或电脑操作工具执行。
 
 | Skill | 用途 |
 | --- | --- |
@@ -128,7 +128,7 @@ $env:WEEKLY_OVERLAY_PHOTOSHOP = $photoshop
 再 `render` 调用 Photoshop：
 
 ```powershell
-python '<skill>/scripts/cover.py' prepare --cg '<cg.png>' --template all --output './output/covers'
+python '<skill>/scripts/cover.py' prepare --cg '<cg.png>' --template all --issue 267 --output './output/covers'
 python '<skill>/scripts/cover.py' render '<run_dir>'
 
 python '<skill>/scripts/overlay.py' prepare --input '<input.txt>' --output './output/overlays'
@@ -140,15 +140,15 @@ python '<skill>/scripts/overlay.py' render '<run_dir>'
 
 ## macOS 适用性
 
-目前 **Photoshop 封面/角标的原生渲染，以及 AE 片头/片尾的原生渲染均只支持 Windows**。封面/角标通过 Windows PowerShell 5.1 + COM，片头/片尾通过 Windows 专用原生进程控制执行；安装 macOS 版 Adobe 应用不会自动使这些入口可用。
+`weekly-cover` 支持 macOS Photoshop 的原生 JSX 渲染：先 `prepare --issue 267`，再 `render` 获取一次性 `run_mac.jsx`，在 Photoshop「文件 → 脚本 → 浏览」执行，最后运行 `verify`。`render` 返回 `awaiting_photoshop` 表示等待执行，不是已导出；可选校色执行后用 `verify --refined` 核验。最终只交付 `exports/` 内的 PNG，每张不超过 5,000,000 字节；文件名为「xx 期周报视频封面 4-3」「xx 期周报视频封面 16-10」「xx 期周报文章封面」。详见 [封面 Skill](weekly-cover/SKILL.md)。Mac 不自动启动 Photoshop，也不申请 AppleScript 自动化权限。
 
-macOS 可做模板下载、部分素材准备、静态检查及离线测试；`doctor` 会明确报告 `render_supported=false`，不能把离线检查通过当成已在 Mac 渲染成功。请使用 Python 3.11+ 的明确路径创建虚拟环境；部分 Mac 的系统 `python3` 是 3.9。
+角标以及 AE 片头/片尾的原生渲染仍只支持 Windows。Mac 请使用 Python 3.11+ 明确路径创建虚拟环境；系统 `python3` 可能是 3.9。`doctor` 会分别报告是否支持渲染和直接调用，模板、字体与实际输出仍须检查。
 
 试用封面时使用本机生成的独立批次，不把别人提供的 run 目录当成可执行任务。渲染会重新从已安装引擎生成 JSX，核对暂存素材哈希和输出路径；并发提交、已有输出、已打开的同批模板都会停止，避免覆盖或丢失编辑。历史批次和失败回执保留供检查，不通过删除回执盲目重跑。
 
 ## 运行环境
 
-- Windows，已安装 Adobe Photoshop 2023 或更高版本。
+- 封面：Windows 或 macOS，已安装 Adobe Photoshop 2023 或更高版本；其他技能的原生渲染仍需 Windows。
 - Python 3.11+（模板校验使用 `hashlib.file_digest`）。
 - Python 包：`Pillow`；`weekly-bgm-overlay` 还需要 `numpy`。
 - COM 桥接使用 Windows PowerShell 5.1。

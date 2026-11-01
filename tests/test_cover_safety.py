@@ -84,8 +84,13 @@ class CoverSafetyTests(unittest.TestCase):
         for skill in ('weekly-cover', 'weekly-bgm-overlay'):
             result = subprocess.run([sys.executable, str(ROOT / skill / 'scripts/doctor.py')], capture_output=True, text=True)
             report = json.loads(result.stdout)
-            self.assertFalse(report['render_supported'])
-            self.assertFalse(report['render_prerequisites_found'])
+            if skill == 'weekly-cover':
+                self.assertTrue(report['render_supported'])
+                self.assertFalse(report['direct_invocation_supported'])
+                self.assertEqual(report['render_transport'], 'macos-photoshop-script-menu')
+            else:
+                self.assertFalse(report['render_supported'])
+                self.assertFalse(report['render_prerequisites_found'])
             self.assertFalse(report['photoshop_started'])
             self.assertIn('macOS', report['render_limitation'])
 

@@ -11,6 +11,7 @@ import sys
 import uuid
 
 from .safety import validate_batch, write_driver
+from .delivery import export_pngs
 
 from .model import (
     DEFAULT_TEMPLATES,
@@ -26,7 +27,7 @@ from .model import (
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = Path(
-    os.environ.get("WEEKLY_COVER_OUTPUT", "E:/project/周报图片设计/cover_runs")
+    os.environ.get("WEEKLY_COVER_OUTPUT", "E:/project/周报图片设计/cover_runs" if sys.platform == "win32" else "./cover_runs")
 )
 DEFAULT_PHOTOSHOP = os.environ.get(
     "WEEKLY_COVER_PHOTOSHOP",
@@ -62,6 +63,9 @@ def prepare(args):
         raise ValueError("at least one --cg image is required")
     templates = resolve_templates(args.template)
     start, end = parse_period(args)
+    issue = getattr(args, "issue", None)
+    if not isinstance(issue, int) or not 1 <= issue <= 99999:
+        raise ValueError("--issue must be between 1 and 99999")
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
     folder = Path(args.output).resolve() / run_id
     folder.mkdir(parents=True, exist_ok=False)
@@ -90,11 +94,14 @@ def prepare(args):
                 "tint": tint,
                 "hide": spec["hide"],
                 "date": period if spec["has_date"] else None,
+                "issue": issue,
                 "replacements": [
                     {"id": layer_id, "image": cg["path"], "cg": cg["index"], "box": spec["box"]}
                     for layer_id in spec["layers"]
                 ],
             })
+
+    (folder / "working").mkdir()
 
     job = {
         "schema_version": 1,
@@ -228,8 +235,8 @@ def contact_sheet(folder, job, use_refined_t2=True):
             tw, th = box[2] - box[0], box[3] - box[1]
             draw.text((x + (cell_width - tw) / 2, label_top + (label_height - th) / 2 - box[1]), rel, fill=label_color, font=font)
         y += row_height + gap
-    out = folder / "contact_sheet.jpg"
-    canvas.save(out, "JPEG", quality=90, optimize=True)
+    out = folder / "contact_sheet.png"
+    canvas.save(out, "PNG", optimize=True)
     return out
 
 
@@ -248,6 +255,8 @@ def write_verification(folder, job, records, extra=None):
 
 
 def verify(args):
+    if getattr(args, "refined", False):
+        return verify_refined(args)
     folder = Path(args.run_dir).resolve(strict=True)
     job = load_job(folder)
     result = read_json(folder / "covers_result.json")
@@ -255,7 +264,14 @@ def verify(args):
         raise ValueError("Photoshop did not complete this run: " + str(result.get("error", result.get("status"))))
     records = verify_outputs(folder, job)
     sheet = contact_sheet(folder, job)
-    return write_verification(folder, job, records, {"status": "verified", "contact_sheet": str(sheet)})
+    exports = export_pngs(folder, job)
+    report = write_verification(folder, job, records, {"status": "verified", "contact_sheet": str(sheet), "exports": exports})
+    receipt_path = folder / "dispatch.json"
+    if receipt_path.is_file():
+        receipt = read_json(receipt_path)
+        receipt["status"] = "rendered"
+        save_json(receipt_path, receipt)
+    return report
 
 
 def render(args):
@@ -265,6 +281,9 @@ def render(args):
     validate_batch(folder, job, sha256)
     # Never execute a driver received inside a run folder. Rebuild from our engine and validated data.
     write_driver(folder, ROOT / "photoshop" / "render_covers.jsx", job)
+    if sys.platform == "darwin":
+        from .mac import stage_script
+        return stage_script(folder, "run.jsx", folder / "covers_result.json", sha256)
     run_photoshop(folder, args.photoshop, driver_name="run.jsx", result_path=folder / "covers_result.json", timeout=args.timeout)
     return verify(args)
 
@@ -285,7 +304,7 @@ def refine(args):
     for cover in t2_covers:
         tint = cover["tint"]
         items.append({
-            "template": str(folder / f"{cover['filename']}.psd"),
+            "template": str(folder / "working" / f"{cover['filename']}.psd") if (folder / "working" / f"{cover['filename']}.psd").is_file() else str(folder / f"{cover['filename']}.psd"),
             "output_dir": str(out_dir),
             "filename": cover["filename"],
             "layers": [
@@ -301,8 +320,23 @@ def refine(args):
     save_json(folder / "refine_job.json", refine_job)
     write_driver(folder, ROOT / "photoshop" / "refine_cover_background_batch.jsx", refine_job,
                  entry="refineCoverBackgroundBatch", driver_name="refine_run.jsx")
+    if sys.platform == "darwin":
+        from .mac import stage_script
+        return stage_script(folder, "refine_run.jsx", out_dir / "refine_batch_result.json", sha256,
+                            dispatch_name="refine_dispatch.json")
     run_photoshop(folder, args.photoshop, driver_name="refine_run.jsx", result_path=out_dir / "refine_batch_result.json",
                   dispatch_name="refine_dispatch.json", timeout=args.timeout)
+    return verify_refined(args)
+
+
+def verify_refined(args):
+    folder = Path(args.run_dir).resolve(strict=True)
+    job = load_job(folder)
+    out_dir = folder / "refined"
+    result = read_json(out_dir / "refine_batch_result.json")
+    if not isinstance(result, list) or not result or any(item.get("status") != "rendered" for item in result):
+        raise ValueError("Photoshop has not completed this refine batch")
+    t2_covers = [cover for cover in job["covers"] if cover["filename"].startswith("T2_")]
     records = verify_outputs(out_dir, {"covers": [dict(cover, filename=cover["filename"]) for cover in t2_covers]})
     sheet = contact_sheet(folder, job, use_refined_t2=True)
     report = {
@@ -313,8 +347,14 @@ def refine(args):
         "refined_dir": str(out_dir),
         "contact_sheet": str(sheet),
         "outputs": records,
+        "exports": export_pngs(out_dir, {**job, "covers": t2_covers}),
     }
     save_json(folder / "refined_verification.json", report)
+    receipt_path = folder / "refine_dispatch.json"
+    if receipt_path.is_file():
+        receipt = read_json(receipt_path)
+        receipt["status"] = "rendered"
+        save_json(receipt_path, receipt)
     return report
 
 
@@ -326,15 +366,15 @@ def status(args):
         return response
     if (folder / "covers_result.json").exists():
         response["result"] = read_json(folder / "covers_result.json")
-    if (folder / "refine_batch_result.json").exists():
-        response["refine_result"] = read_json(folder / "refine_batch_result.json")
+    if (folder / "refined/refine_batch_result.json").exists():
+        response["refine_result"] = read_json(folder / "refined/refine_batch_result.json")
     if (folder / "dispatch.json").exists():
         response["dispatch"] = read_json(folder / "dispatch.json")
     if (folder / "refine_dispatch.json").exists():
         response["refine_dispatch"] = read_json(folder / "refine_dispatch.json")
     if (folder / "verification.json").exists():
         response["verification"] = read_json(folder / "verification.json")
-    response["status"] = "rendered" if (folder / "covers_result.json").exists() else ("submitted" if (folder / "dispatch.json").exists() else "not_started")
+    response["status"] = response.get("result", {}).get("status") or response.get("dispatch", {}).get("status", "not_started")
     return response
 
 
@@ -362,11 +402,13 @@ def main():
     prep.add_argument("--template", default="all", help="1, 2, 3, or all")
     prep.add_argument("--output", default=str(DEFAULT_OUTPUT))
     prep.add_argument("--date", help='Explicit period, e.g. "2026.10.24 - 2026.10.30"')
+    prep.add_argument("--issue", type=int, required=True, help="Issue number for cover text and PNG filenames")
     prep.add_argument("--period-start", help="ISO start date")
     prep.add_argument("--period-end", help="ISO end date")
 
     for cmd in ("verify", "status", "review"):
         sub.add_parser(cmd).add_argument("run_dir")
+    sub.choices["verify"].add_argument("--refined", action="store_true", help="Verify outputs from a completed refine script")
     for cmd in ("render", "refine"):
         parser_cmd = sub.add_parser(cmd)
         parser_cmd.add_argument("run_dir")
