@@ -11,7 +11,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     args.output.mkdir(parents=True, exist_ok=True)
-    for name in ("weekly-cover", "weekly-bgm-overlay", "weekly-intro", "weekly-outro"):
+    for name in ("weekly-cover", "weekly-bgm-overlay", "weekly-intro", "weekly-outro", "weekly-script", "weekly-ruby"):
         source = root / name
         target = args.output / (name + ".zip")
         with ZipFile(target, "w", ZIP_DEFLATED) as archive:

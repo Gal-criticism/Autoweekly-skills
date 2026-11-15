@@ -1,18 +1,20 @@
 # Autoweekly Skills
 
-四个独立的 skill，可由 Codex、WorkBuddy 等本地智能体调用，生成 Galgame 周报配图、片头和片尾。
+六个独立的 skill，可由 Codex、WorkBuddy 等本地智能体调用，完成 Galgame 周报文案生成、口播日语注音，以及配图、片头和片尾渲染。
 Windows 封面、角标通过 Photoshop 原生 COM / `DoJavaScriptFile` 驱动；Mac 封面通过 Photoshop 脚本菜单执行一次性 JSX。片头使用
 After Effects 独立后台实例、JSX 与 aerender。Windows 原生调用不依赖模拟点击；Mac 封面的脚本菜单可由用户或电脑操作工具执行。
 
 | Skill | 用途 |
 | --- | --- |
+| `weekly-script` | 解析当周 X 汇总与历史资料索引，经事实核实后生成三栏周报初稿 DOCX、干净口播稿与审阅清单。 |
+| `weekly-ruby` | 对已生成的周报初稿或口播稿进行日文专有名词提取、VNDB 别名/罗马音查询与【罗马音】1对1回填，导出注音版 DOCX。 |
 | `weekly-bgm-overlay` | 根据 BGM 信息，批量生成新作 / 汉化 / 周边 / 简讯四栏的透明 PNG 辅助角标。 |
 | `weekly-cover` | 把 CG 立绘放进三个封面模板（16:9、横幅、4:3），按 CG 边缘主色自动配色，并避开人脸遮挡。 |
 | `weekly-intro` | 从指定图片范围选图，替换现成 AE 片头模板，在独立副本中继承 Voukoder 队列并后台导出 MP4。 |
 | `weekly-outro` | 按期号读取 XLSX 或飞书名单，替换现成 AE 片尾中的署名和指定范围图片，继承 Voukoder 后台导出。 |
 
-`weekly-intro`、`weekly-outro` 的本地包由 `python tools/package_skills.py` 生成；尚未发布到上述旧版 Release。
-它使用用户现有 AEP，不附带私人模板或新闻图包。调用流程见
+`weekly-script`、`weekly-ruby`、`weekly-intro`、`weekly-outro` 的本地包由 `python tools/package_skills.py` 生成；尚未发布到上述旧版 Release。
+它使用用户现有 AEP，不附带私人模板或新闻图包。文案生成流程见[周报文案技能说明](weekly-script/SKILL.md)，日语注音流程见[周报注音技能说明](weekly-ruby/SKILL.md)。片头调用流程见
 [片头技能说明](weekly-intro/SKILL.md)，媒体核验依赖 FFmpeg/FFprobe；存在启用的文本层时还需 fontTools 校验字体。
 片尾流程见[片尾技能说明](weekly-outro/SKILL.md)，本地工作表读取另需 openpyxl；飞书 API 需自行配置目标表的读取权限。
 
