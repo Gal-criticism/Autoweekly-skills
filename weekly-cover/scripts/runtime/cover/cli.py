@@ -40,7 +40,13 @@ def read_json(path):
 
 
 def save_json(path, data):
-    Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    target = Path(path)
+    tmp = target.parent / f".{target.name}.{uuid.uuid4().hex}.tmp"
+    try:
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, target)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def sha256(path):
@@ -150,26 +156,72 @@ def load_job(folder):
     return job
 
 
-def verify_outputs(folder, job):
-    from PIL import Image
-    records = []
+def resolve_active_sources(folder, job, use_refined_t2=True):
+    """Resolve the single active source image per cover (refined T2 when available, else original)."""
+    folder = Path(folder).resolve()
+    refined_dir = folder / "refined"
+    resolved = []
     for cover in job["covers"]:
         name = cover["filename"]
         template_index = int(name.split("_")[0][1])
-        path = folder / f"{name}.png"
+        refined_path = refined_dir / f"{name}.png"
+        if template_index == 2 and use_refined_t2 and refined_path.is_file():
+            resolved.append({
+                "filename": name,
+                "template_index": template_index,
+                "source_kind": "refined",
+                "rel_path": f"refined/{name}.png",
+                "source_path": refined_path,
+            })
+        else:
+            resolved.append({
+                "filename": name,
+                "template_index": template_index,
+                "source_kind": "original",
+                "rel_path": f"{name}.png",
+                "source_path": folder / f"{name}.png",
+            })
+    return resolved
+
+
+def verify_outputs(folder, job, *, active_sources=None):
+    from PIL import Image
+    records = []
+    if active_sources is not None:
+        items = active_sources
+    else:
+        items = [
+            {
+                "filename": cover["filename"],
+                "template_index": int(cover["filename"].split("_")[0][1]),
+                "source_kind": "original",
+                "source_path": Path(folder) / f"{cover['filename']}.png",
+            }
+            for cover in job["covers"]
+        ]
+    for item in items:
+        name = item["filename"]
+        template_index = item["template_index"]
+        path = Path(item["source_path"])
         if not path.is_file():
-            raise ValueError(f"Missing output: {name}.png")
+            raise ValueError(f"Missing output: {path.name}")
         with Image.open(path) as image:
             if image.size != expected_size(template_index):
                 raise ValueError(f"Unexpected size for {name}: {image.size}")
             image.load()
             if image.convert("RGB").getextrema() == [(0, 0), (0, 0), (0, 0)]:
                 raise ValueError(f"Empty output: {name}")
-            records.append({"filename": name, "sha256": sha256(path), "size": list(image.size)})
+            records.append({
+                "filename": name,
+                "source_kind": item.get("source_kind", "original"),
+                "source_path": str(path),
+                "sha256": sha256(path),
+                "size": list(image.size),
+            })
     return records
 
 
-def contact_sheet(folder, job, use_refined_t2=True):
+def contact_sheet(folder, job, use_refined_t2=True, active_sources=None):
     from PIL import Image, ImageDraw, ImageFont, ImageOps
 
     cell_width = 800
@@ -197,20 +249,21 @@ def contact_sheet(folder, job, use_refined_t2=True):
                 image = image.convert("RGB")
         return image
 
-    by_name = {cover["filename"]: cover for cover in job["covers"]}
-    refined_dir = folder / "refined"
+    sources = active_sources if active_sources is not None else resolve_active_sources(folder, job, use_refined_t2=use_refined_t2)
+    by_name = {item["filename"]: item for item in sources}
     rows = []
+    max_cg = max((int(item["filename"].split("_CG")[1]) for item in sources if "_CG" in item["filename"]), default=3)
     for template_index in (1, 2, 3):
         row = []
-        for cg_index in range(1, 4):
+        for cg_index in range(1, max_cg + 1):
             name = f"T{template_index}_CG{cg_index}"
             if name not in by_name:
                 continue
-            rel = f"refined/{name}.png" if (template_index == 2 and use_refined_t2 and (refined_dir / f"{name}.png").is_file()) else f"{name}.png"
-            path = folder / rel
+            item = by_name[name]
+            path = Path(item["source_path"])
             if not path.is_file():
                 raise FileNotFoundError(path)
-            row.append((rel, open_rgb(path)))
+            row.append((item["rel_path"], open_rgb(path)))
         if row:
             rows.append(row)
 
@@ -240,6 +293,68 @@ def contact_sheet(folder, job, use_refined_t2=True):
     return out
 
 
+def _deliverables_fingerprint(deliverables):
+    canonical = sorted(
+        (d["filename"], d["source_kind"], d["source_sha256"], d["export_sha256"])
+        for d in deliverables
+    )
+    return hashlib.sha256(json.dumps(canonical, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def build_delivery_manifest(folder, job, *, use_refined_t2=True):
+    """Verify active sources, export unified PNGs, rebuild contact sheet, and write delivery_manifest.json."""
+    folder = Path(folder).resolve()
+    active_sources = resolve_active_sources(folder, job, use_refined_t2=use_refined_t2)
+    records = verify_outputs(folder, job, active_sources=active_sources)
+    overrides = {
+        item["filename"]: item["source_path"]
+        for item in active_sources
+        if item["source_kind"] == "refined"
+    }
+    exports = export_pngs(folder, job, source_overrides=overrides)
+    sheet = contact_sheet(folder, job, use_refined_t2=use_refined_t2, active_sources=active_sources)
+    exports_by_name = {rec["filename"]: rec for rec in exports}
+    deliverables = []
+    for rec in records:
+        exp = exports_by_name[rec["filename"]]
+        deliverables.append({
+            "filename": rec["filename"],
+            "source_kind": rec["source_kind"],
+            "source_path": rec["source_path"],
+            "source_sha256": rec["sha256"],
+            "export_path": exp["path"],
+            "export_sha256": exp["sha256"],
+            "bytes": exp["bytes"],
+            "size": exp["size"],
+        })
+    fingerprint = _deliverables_fingerprint(deliverables)
+    manifest = {
+        "schema_version": 1,
+        "generated_at": datetime.now().astimezone().isoformat(),
+        "run_id": job["run_id"],
+        "contact_sheet": str(sheet),
+        "contact_sheet_sha256": sha256(sheet),
+        "deliverables_fingerprint": fingerprint,
+        "deliverables": deliverables,
+    }
+    save_json(folder / "delivery_manifest.json", manifest)
+    return records, exports, sheet, manifest
+
+
+def _preserved_visual_review(folder, fingerprint):
+    ver_path = Path(folder) / "verification.json"
+    if not ver_path.is_file():
+        return "pending"
+    try:
+        previous = read_json(ver_path)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return "pending"
+    vr = previous.get("visual_review")
+    if isinstance(vr, dict) and vr.get("status") == "passed" and vr.get("deliverables_fingerprint") == fingerprint:
+        return vr
+    return "pending"
+
+
 def write_verification(folder, job, records, extra=None):
     report = {
         "generated_at": datetime.now().astimezone().isoformat(),
@@ -262,10 +377,21 @@ def verify(args):
     result = read_json(folder / "covers_result.json")
     if result.get("status") != "rendered":
         raise ValueError("Photoshop did not complete this run: " + str(result.get("error", result.get("status"))))
-    records = verify_outputs(folder, job)
-    sheet = contact_sheet(folder, job)
-    exports = export_pngs(folder, job)
-    report = write_verification(folder, job, records, {"status": "verified", "contact_sheet": str(sheet), "exports": exports})
+    records, exports, sheet, manifest = build_delivery_manifest(folder, job, use_refined_t2=True)
+    visual_review = _preserved_visual_review(folder, manifest["deliverables_fingerprint"])
+    report = write_verification(
+        folder,
+        job,
+        records,
+        {
+            "status": "verified",
+            "contact_sheet": str(sheet),
+            "delivery_manifest": str(folder / "delivery_manifest.json"),
+            "deliverables_fingerprint": manifest["deliverables_fingerprint"],
+            "exports": exports,
+            "visual_review": visual_review,
+        },
+    )
     receipt_path = folder / "dispatch.json"
     if receipt_path.is_file():
         receipt = read_json(receipt_path)
@@ -337,8 +463,24 @@ def verify_refined(args):
     if not isinstance(result, list) or not result or any(item.get("status") != "rendered" for item in result):
         raise ValueError("Photoshop has not completed this refine batch")
     t2_covers = [cover for cover in job["covers"] if cover["filename"].startswith("T2_")]
-    records = verify_outputs(out_dir, {"covers": [dict(cover, filename=cover["filename"]) for cover in t2_covers]})
-    sheet = contact_sheet(folder, job, use_refined_t2=True)
+    # Verify refined T2 files exist and match expected dimensions
+    verify_outputs(out_dir, {"covers": [dict(cover, filename=cover["filename"]) for cover in t2_covers]})
+    # Rebuild unified delivery manifest, exports/, contact_sheet.png, and verification.json
+    records, exports, sheet, manifest = build_delivery_manifest(folder, job, use_refined_t2=True)
+    visual_review = _preserved_visual_review(folder, manifest["deliverables_fingerprint"])
+    write_verification(
+        folder,
+        job,
+        records,
+        {
+            "status": "verified",
+            "contact_sheet": str(sheet),
+            "delivery_manifest": str(folder / "delivery_manifest.json"),
+            "deliverables_fingerprint": manifest["deliverables_fingerprint"],
+            "exports": exports,
+            "visual_review": visual_review,
+        },
+    )
     report = {
         "generated_at": datetime.now().astimezone().isoformat(),
         "run_id": job["run_id"],
@@ -346,8 +488,10 @@ def verify_refined(args):
         "overall_pass": True,
         "refined_dir": str(out_dir),
         "contact_sheet": str(sheet),
+        "delivery_manifest": str(folder / "delivery_manifest.json"),
+        "deliverables_fingerprint": manifest["deliverables_fingerprint"],
         "outputs": records,
-        "exports": export_pngs(out_dir, {**job, "covers": t2_covers}),
+        "exports": exports,
     }
     save_json(folder / "refined_verification.json", report)
     receipt_path = folder / "refine_dispatch.json"
@@ -374,6 +518,8 @@ def status(args):
         response["refine_dispatch"] = read_json(folder / "refine_dispatch.json")
     if (folder / "verification.json").exists():
         response["verification"] = read_json(folder / "verification.json")
+    if (folder / "delivery_manifest.json").exists():
+        response["delivery_manifest"] = read_json(folder / "delivery_manifest.json")
     response["status"] = response.get("result", {}).get("status") or response.get("dispatch", {}).get("status", "not_started")
     return response
 
@@ -382,11 +528,28 @@ def review(args):
     if not args.note.strip():
         raise ValueError("Visual inspection note is required")
     folder = Path(args.run_dir).resolve(strict=True)
-    job = load_job(folder)
-    if not (folder / "verification.json").exists():
+    load_job(folder)
+    if not (folder / "verification.json").exists() or not (folder / "delivery_manifest.json").exists():
         verify(args)
     report = read_json(folder / "verification.json")
-    report["visual_review"] = {"status": "passed", "note": args.note.strip(), "recorded_at": datetime.now().astimezone().isoformat()}
+    manifest = read_json(folder / "delivery_manifest.json")
+    report["delivery_manifest"] = str(folder / "delivery_manifest.json")
+    report["deliverables_fingerprint"] = manifest["deliverables_fingerprint"]
+    report["visual_review"] = {
+        "status": "passed",
+        "note": args.note.strip(),
+        "recorded_at": datetime.now().astimezone().isoformat(),
+        "deliverables_fingerprint": manifest["deliverables_fingerprint"],
+        "deliverables": [
+            {
+                "filename": d["filename"],
+                "source_kind": d["source_kind"],
+                "export_path": d["export_path"],
+                "export_sha256": d["export_sha256"],
+            }
+            for d in manifest["deliverables"]
+        ],
+    }
     save_json(folder / "verification.json", report)
     return report
 

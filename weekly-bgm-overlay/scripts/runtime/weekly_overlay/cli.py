@@ -27,7 +27,13 @@ def read_json(path):
 
 
 def save_json(path, data):
-    Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    target = Path(path)
+    tmp = target.parent / f".{target.name}.{uuid.uuid4().hex}.tmp"
+    try:
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, target)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def sha256(path):
@@ -96,12 +102,29 @@ def load_job(folder):
     return job
 
 
+def _outputs_fingerprint(records):
+    canonical = sorted((r["filename"], r["sha256"]) for r in records)
+    return hashlib.sha256(json.dumps(canonical, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _preserved_visual_review(folder, fingerprint):
+    ver_path = Path(folder) / "verification.json"
+    if not ver_path.is_file():
+        return "pending"
+    try:
+        previous = read_json(ver_path)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return "pending"
+    vr = previous.get("visual_review")
+    if isinstance(vr, dict) and vr.get("status") == "passed" and vr.get("outputs_fingerprint") == fingerprint:
+        return vr
+    return "pending"
+
+
 def verify_run(folder):
     from PIL import Image
     import numpy as np
     folder = Path(folder).resolve(strict=True)
-    if (folder / "verification.json").exists():
-        save_json(folder / "verification.json", {"status": "rechecking", "visual_review": "pending"})
     job = load_job(folder)
     result = read_json(folder / "result.json")
     if (result.get("schema_version") != 1 or result.get("run_id") != job["run_id"]
@@ -142,11 +165,23 @@ def verify_run(folder):
             records.append({"filename": name, "sha256": sha256(path), "nonzero_alpha_pixels": count,
                             "alpha_max": int(alpha.max())})
     contact_sheet(folder / "preview.jpg", images, job["task"]["items"])
+    fingerprint = _outputs_fingerprint(records)
+    visual_review = _preserved_visual_review(folder, fingerprint)
     report = {"schema_version": 1, "run_id": job["run_id"], "status": "verified",
               "period": job["period"], "source_unchanged": True, "outputs": records,
-              "preview": str(folder / "preview.jpg"), "visual_review": "pending"}
+              "outputs_fingerprint": fingerprint,
+              "preview": str(folder / "preview.jpg"), "visual_review": visual_review}
     save_json(folder / "verification.json", report)
     return report
+
+
+def _load_preview_font(ImageFont, size=24):
+    for candidate in ("C:/Windows/Fonts/msyh.ttc", "msyh.ttc", "arial.ttf", "DejaVuSans.ttf", "segoeui.ttf"):
+        try:
+            return ImageFont.truetype(candidate, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
 
 
 def contact_sheet(path, images, items):
@@ -154,7 +189,7 @@ def contact_sheet(path, images, items):
     width, row = 1460, 400
     sheet = Image.new("RGB", (width, 70 + row * len(images)), "#f3f1eb")
     draw = ImageDraw.Draw(sheet)
-    font = ImageFont.truetype("C:/Windows/Fonts/msyh.ttc", 24)
+    font = _load_preview_font(ImageFont, 24)
     draw.text((24, 15), "周报 BGM 角标 · 全画布 / 文字放大（预览底纹不导出）", font=font, fill="#222222")
     for index, (image, item) in enumerate(zip(images, items)):
         top = 70 + index * row
@@ -173,7 +208,13 @@ def contact_sheet(path, images, items):
         crop = composed.crop((20, 140, right, 480))
         crop.thumbnail((840, 300), Image.Resampling.LANCZOS)
         sheet.paste(crop, (590, top + 48))
-    sheet.save(path, quality=95)
+    target = Path(path)
+    tmp = target.parent / f".{target.name}.{uuid.uuid4().hex}.tmp.jpg"
+    try:
+        sheet.save(tmp, format="JPEG", quality=95)
+        os.replace(tmp, target)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def main():
@@ -210,8 +251,13 @@ def main():
             if not args.note.strip():
                 raise ValueError("Visual inspection note is required")
             response = verify_run(args.run_dir)
-            response["visual_review"] = {"status": "passed", "note": args.note.strip(),
-                                         "recorded_at": datetime.now().astimezone().isoformat()}
+            response["visual_review"] = {
+                "status": "passed",
+                "note": args.note.strip(),
+                "recorded_at": datetime.now().astimezone().isoformat(),
+                "outputs_fingerprint": response["outputs_fingerprint"],
+                "outputs_sha256": {r["filename"]: r["sha256"] for r in response["outputs"]},
+            }
             save_json(Path(args.run_dir) / "verification.json", response)
         else:
             folder = Path(args.run_dir)
